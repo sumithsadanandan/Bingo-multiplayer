@@ -36,6 +36,7 @@ body.neon .info-box{background:#2d4a3e;}
 body.neon #bingoLabel{color:#48c774;}
 .winner-msg{color:#e74c3c;font-size:20px;font-weight:800;}
 .loading{text-align:center;padding:20px;color:#999;}
+.debug{font-size:10px;color:#999;margin-top:5px;}
 </style>
 </head>
 <body class="pastel">
@@ -120,6 +121,7 @@ function initApp() {
   let gameStarted = false;
   let currentTurn = null;
   let listenersAttached = false;
+  let isCheckingWinner = false; // Prevent multiple winner checks
 
   /* UI refs */
   const createBtn = document.getElementById('createBtn');
@@ -165,7 +167,9 @@ function initApp() {
         turn: "P1",
         boards: {},
         marks: {},
-        scores: { P1: 0, P2: 0 }
+        scores: { P1: 0, P2: 0 },
+        winner: null,
+        lastMove: null
       });
       
       enterRoomUI();
@@ -257,6 +261,7 @@ function initApp() {
       updates[`rooms/${roomId}/started`] = true;
       updates[`rooms/${roomId}/turn`] = "P1";
       updates[`rooms/${roomId}/winner`] = null;
+      updates[`rooms/${roomId}/lastMove`] = null;
       
       await db.ref().update(updates);
     } catch (error) {
@@ -277,6 +282,7 @@ function initApp() {
       completedLines.clear();
       gameStarted = false;
       bingoLabel.innerText = '';
+      isCheckingWinner = false;
       
       const updates = {};
       updates[`rooms/${roomId}/boards/P1`] = p1Board;
@@ -286,6 +292,7 @@ function initApp() {
       updates[`rooms/${roomId}/turn`] = "P1";
       updates[`rooms/${roomId}/winner`] = null;
       updates[`rooms/${roomId}/started`] = true;
+      updates[`rooms/${roomId}/lastMove`] = null;
       
       await db.ref().update(updates);
       
@@ -445,8 +452,14 @@ function initApp() {
       
       await db.ref().update(updates);
       
-      // Check if anyone won after this move
-      setTimeout(() => checkForWinAfterMove(), 100);
+      // Check if anyone won after this move - ONLY the player who clicked checks
+      if (!isCheckingWinner) {
+        isCheckingWinner = true;
+        setTimeout(async () => {
+          await checkForWinAfterMove();
+          isCheckingWinner = false;
+        }, 200);
+      }
       
     } catch (error) {
       console.error('Error marking cell:', error);
@@ -483,67 +496,79 @@ function initApp() {
       bingoLabel.innerText = letters.slice(0, count);
     }
     
-    return count >= 5; // Return true if BINGO achieved
+    return count >= 5;
+  }
+  
+  /* ===== Check BINGO for a specific player ===== */
+  function checkBingoForPlayer(marked) {
+    let completedCount = 0;
+    
+    // Check rows
+    for (let r = 0; r < 5; r++) {
+      const idxs = [0, 1, 2, 3, 4].map(c => r * 5 + c);
+      if (idxs.every(i => marked[i])) completedCount++;
+    }
+    
+    // Check columns
+    for (let c = 0; c < 5; c++) {
+      const idxs = [0, 1, 2, 3, 4].map(r => r * 5 + c);
+      if (idxs.every(i => marked[i])) completedCount++;
+    }
+    
+    return completedCount >= 5;
   }
   
   /* ===== Check for win after move ===== */
   async function checkForWinAfterMove() {
     try {
       // Check if there's already a winner
-      const winnerSnap = await db.ref(`rooms/${roomId}/winner`).once('value');
-      if (winnerSnap.val()) return; // Already has a winner
+      const roomSnap = await db.ref(`rooms/${roomId}`).once('value');
+      const roomData = roomSnap.val();
       
-      // Get the last move player
-      const lastMoveSnap = await db.ref(`rooms/${roomId}/lastMove`).once('value');
-      const lastMovePlayer = lastMoveSnap.val();
+      if (!roomData) return;
+      if (roomData.winner) return; // Already has a winner
       
+      const lastMovePlayer = roomData.lastMove;
       if (!lastMovePlayer) return;
       
-      // Check BOTH players for BINGO (not just the one who moved)
-      const boardsSnap = await db.ref(`rooms/${roomId}/boards`).once('value');
-      const marksSnap = await db.ref(`rooms/${roomId}/marks`).once('value');
+      const boards = roomData.boards || {};
+      const marks = roomData.marks || {};
       
-      const boards = boardsSnap.val() || {};
-      const marks = marksSnap.val() || {};
+      // Check both players for BINGO
+      const p1HasBingo = boards.P1 ? checkBingoForPlayer(
+        Object.keys(marks.P1 || {}).reduce((arr, idx) => {
+          arr[Number(idx)] = true;
+          return arr;
+        }, Array(25).fill(false))
+      ) : false;
+      
+      const p2HasBingo = boards.P2 ? checkBingoForPlayer(
+        Object.keys(marks.P2 || {}).reduce((arr, idx) => {
+          arr[Number(idx)] = true;
+          return arr;
+        }, Array(25).fill(false))
+      ) : false;
       
       let winner = null;
       
-      // Check both players
-      for (const pid of ['P1', 'P2']) {
-        if (!boards[pid]) continue;
-        
-        const marksObj = marks[pid] || {};
-        const marked = Array(25).fill(false);
-        Object.keys(marksObj).forEach(idx => {
-          marked[Number(idx)] = true;
-        });
-        
-        // Count completed lines
-        let completedCount = 0;
-        
-        // Check rows
-        for (let r = 0; r < 5; r++) {
-          const idxs = [0, 1, 2, 3, 4].map(c => r * 5 + c);
-          if (idxs.every(i => marked[i])) completedCount++;
-        }
-        
-        // Check columns
-        for (let c = 0; c < 5; c++) {
-          const idxs = [0, 1, 2, 3, 4].map(r => r * 5 + c);
-          if (idxs.every(i => marked[i])) completedCount++;
-        }
-        
-        // If this player has BINGO
-        if (completedCount >= 5) {
-          // If multiple players have BINGO simultaneously, prioritize the one who made the move
-          if (!winner || pid === lastMovePlayer) {
-            winner = pid;
-          }
-        }
+      // Winner logic:
+      // 1. If only one player has BINGO, they win
+      // 2. If both have BINGO, the one who made the move wins (they got it first)
+      // 3. If neither has BINGO, no winner yet
+      if (p1HasBingo && p2HasBingo) {
+        winner = lastMovePlayer; // Whoever clicked wins (got it first)
+      } else if (p1HasBingo) {
+        winner = "P1";
+      } else if (p2HasBingo) {
+        winner = "P2";
       }
       
       // Declare the winner
       if (winner) {
+        // Double-check no winner was set in the meantime
+        const checkSnap = await db.ref(`rooms/${roomId}/winner`).once('value');
+        if (checkSnap.val()) return; // Someone else already set the winner
+        
         await db.ref(`rooms/${roomId}/winner`).set(winner);
         
         // Increment score
