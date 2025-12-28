@@ -267,12 +267,6 @@ function initApp() {
   /* ===== New Game ===== */
   newGameBtn.onclick = async () => {
     try {
-      // Reset local state
-      myBoard = [];
-      myMarked = [];
-      completedLines.clear();
-      gameStarted = false;
-      
       // Generate new boards
       const p1Board = shuffle([...Array(25).keys()].map(n => n + 1));
       const p2Board = shuffle([...Array(25).keys()].map(n => n + 1));
@@ -287,6 +281,12 @@ function initApp() {
       updates[`rooms/${roomId}/started`] = true;
       
       await db.ref().update(updates);
+      
+      // Reset local state AFTER Firebase update
+      myBoard = [];
+      myMarked = [];
+      completedLines.clear();
+      gameStarted = false;
       
       // Hide new game button
       newGameBtn.classList.add('hidden');
@@ -362,16 +362,13 @@ function initApp() {
         turnLabel.innerText = isMyTurn ? "🟢 Your Turn!" : `⏳ Waiting for ${currentTurn}`;
         turnLabel.style.color = isMyTurn ? "#27ae60" : "#e67e22";
         
-        // Load my board if not already loaded
-        if (myBoard.length === 0) {
-          myBoard = data.boards[playerId];
-          myMarked = Array(25).fill(false);
-          completedLines.clear();
-        }
+        // ALWAYS reload board from Firebase (important for new games)
+        myBoard = data.boards[playerId];
+        myMarked = Array(25).fill(false);
+        completedLines.clear();
         
         // Update marks
         const marksObj = data.marks?.[playerId] || {};
-        myMarked = Array(25).fill(false);
         Object.keys(marksObj).forEach(idx => {
           myMarked[Number(idx)] = true;
         });
