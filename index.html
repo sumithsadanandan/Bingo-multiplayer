@@ -291,6 +291,18 @@ function enterGame(data){
   const boardKey = playerNum === 1 ? "p1" : "p2";
   renderBoard(data.boards[boardKey]);
 
+  const grid = document.getElementById("grid");
+  const status = document.getElementById("lobbyStatus");
+
+  // ✅ IMPORTANT FIX
+  if (data.currentPlayer === playerNum) {
+    grid.style.pointerEvents = "auto";
+    status.innerText = "Your turn";
+  } else {
+    grid.style.pointerEvents = "none";
+    status.innerText = "Opponent's turn";
+  }
+
   listenGame();
 }
 
