@@ -271,6 +271,13 @@ function initApp() {
       const p1Board = shuffle([...Array(25).keys()].map(n => n + 1));
       const p2Board = shuffle([...Array(25).keys()].map(n => n + 1));
       
+      // Reset local state FIRST
+      myBoard = [];
+      myMarked = [];
+      completedLines.clear();
+      gameStarted = false;
+      bingoLabel.innerText = '';
+      
       const updates = {};
       updates[`rooms/${roomId}/boards/P1`] = p1Board;
       updates[`rooms/${roomId}/boards/P2`] = p2Board;
@@ -281,12 +288,6 @@ function initApp() {
       updates[`rooms/${roomId}/started`] = true;
       
       await db.ref().update(updates);
-      
-      // Reset local state AFTER Firebase update
-      myBoard = [];
-      myMarked = [];
-      completedLines.clear();
-      gameStarted = false;
       
       // Hide new game button
       newGameBtn.classList.add('hidden');
@@ -342,6 +343,9 @@ function initApp() {
         bingoLabel.innerHTML = `<div class="winner-msg">${winnerText}</div>`;
         infoBox.innerText = "Game Over! " + (data.winner === playerId ? "You get a point!" : data.winner + " gets a point!");
         
+        // Disable clicking when game is over
+        gameStarted = false;
+        
         // Show New Game button (anyone can start a new game)
         newGameBtn.classList.remove('hidden');
         newGameBtn.innerText = "🔄 Play Again";
@@ -357,13 +361,16 @@ function initApp() {
         lobbyCard.classList.add('hidden');
         gameCard.classList.remove('hidden');
         
-        gameStarted = true;
+        // Re-enable game when not in winner state
+        if (!data.winner) {
+          gameStarted = true;
+        }
         
         turnLabel.innerText = isMyTurn ? "🟢 Your Turn!" : `⏳ Waiting for ${currentTurn}`;
         turnLabel.style.color = isMyTurn ? "#27ae60" : "#e67e22";
         
         // ALWAYS reload board from Firebase (important for new games)
-        myBoard = data.boards[playerId];
+        myBoard = [...data.boards[playerId]]; // Create a new array copy
         myMarked = Array(25).fill(false);
         completedLines.clear();
         
