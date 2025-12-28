@@ -52,7 +52,7 @@ body.neon #bingoLabel{color:#48c774;}
       <option value="soft">🧊 Soft</option>
     </select>
     <p id="lobbyStatus" class="status"></p>
-    <button id="startBtn" class="hidden" disabled>Start Game (owner only)</button>
+    <button id="startBtn" class="hidden" disabled>Waiting for players...</button>
   </div>
 
   <div id="game" class="card hidden">
@@ -251,13 +251,23 @@ function initApp() {
       const players = Object.keys(data.players || {});
       lobbyStatus.innerText = `Players: ${players.length}/2`;
       
-      // Update start button
+      // Update start button - only show for owner when 2 players are in
       if (isOwner) {
+        startBtn.classList.remove('hidden');
         if (players.length === 2 && !data.started) {
-          startBtn.classList.remove('hidden');
           startBtn.disabled = false;
+          startBtn.innerText = "Start Game";
+        } else if (data.started) {
+          startBtn.disabled = true;
+          startBtn.innerText = "Game Started";
         } else {
           startBtn.disabled = true;
+          startBtn.innerText = "Waiting for Player 2...";
+        }
+      } else {
+        // Non-owner - show waiting message
+        if (!data.started) {
+          lobbyStatus.innerText = `Players: ${players.length}/2 - Waiting for owner to start...`;
         }
       }
       
