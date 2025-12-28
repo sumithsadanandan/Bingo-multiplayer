@@ -1,55 +1,78 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sumith’s Bingo - Rooms</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sumith’s Bingo</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&display=swap" rel="stylesheet">
 <style>
-body{margin:0;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px;background:#fde2e4;transition:0.3s;}
-h1{margin:6px 0;}
-input,button,select{padding:10px 16px;margin:5px;font-size:16px;border-radius:8px;border:1px solid #ccc;}
-.board-container{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;}
-.player-board{background:#fff;padding:20px;border-radius:20px;box-shadow:0 12px 24px rgba(0,0,0,0.12);text-align:center;transition:0.3s;}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:12px;}
-.cell{aspect-ratio:1;display:flex;justify-content:center;align-items:center;border-radius:16px;border:2px solid #e8e8e8;font-weight:700;font-size:18px;cursor:pointer;transition:0.25s;}
-.cell.marked{background:#d0f0c0;} 
-.cell.completed{background:#4caf50;color:#fff;}
-#turnIndicator{margin-top:12px;font-weight:600;font-size:18px;}
-canvas{position:fixed;inset:0;pointer-events:none;}
-#winner{margin-top:12px;font-weight:700;font-size:20px;}
-#calledNumbers{margin-top:12px;font-weight:500;}
-.hidden{display:none;}
+:root {
+  --bg: linear-gradient(135deg, #fde2e4, #fadadd);
+  --card: #ffffff;
+  --cell: #ffffff;
+  --border: #e8e8e8;
+  --marked: #e6dbff;
+  --complete: #c8f7dc;
+  --accent: #f48fb1;
+  --accent-dark: #ec407a;
+  --text: #444;
+  --shadow: 0 12px 30px rgba(0,0,0,0.08);
+}
+body {margin:0;font-family:'Poppins',sans-serif;min-height:100vh;display:flex;justify-content:center;background:var(--bg);}
+.app {width:100%;max-width:420px;padding:16px;}
+header {display:flex;justify-content:space-between;align-items:center;}
+h1 {margin:6px 0;color:var(--text);}
+select {padding:6px 10px;border-radius:12px;border:none;font-family:inherit;}
+.bingo {display:flex;justify-content:center;gap:10px;margin:12px 0;}
+.letter {width:44px;height:44px;border-radius:50%;background:#fff;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--accent);}
+.letter.active {background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;}
+.card {background:var(--card);border-radius:20px;padding:14px;box-shadow:var(--shadow);}
+.grid {display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+.cell {aspect-ratio:1;background:var(--cell);border-radius:14px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--text);cursor:pointer;transition:0.25s;}
+.cell.marked {background: var(--marked);}
+.cell.completed {background: var(--complete);}
+.controls {text-align:center;margin-top:14px;}
+button {padding:12px 24px;font-size:16px;border-radius:30px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;cursor:pointer;}
+#bingoMessage {margin-top:12px;font-size:26px;font-weight:600;color:var(--accent-dark);opacity:0;transition:0.6s;}
+#bingoMessage.show {opacity:1;}
+canvas {position:fixed;inset:0;pointer-events:none;}
 </style>
 </head>
-<body>
-
-<h1>Sumith’s Bingo</h1>
-
-<div id="roomSetup">
-  <button id="createRoomBtn">Create Room</button>
-  <input type="text" id="joinCode" placeholder="Enter Room Code">
-  <button id="joinRoomBtn">Join Room</button>
-</div>
-
-<div id="gameArea" class="hidden">
-  <div>
-    Room Code: <span id="roomCodeDisplay"></span>
-    <select id="themeSelect">
-      <option value="pastel">Pastel</option>
-      <option value="lavender">Lavender</option>
-      <option value="neon">Neon</option>
+<body class="pastel">
+<div class="app">
+  <header>
+    <h1>Sumith’s Bingo</h1>
+    <select id="theme">
+      <option value="pastel">🌸 Pastel Play</option>
+      <option value="neon">⚡ Neon Night</option>
+      <option value="soft">🧊 Soft Touch</option>
     </select>
-    <button id="newGameBtn">New Game</button>
-  </div>
-  <div id="turnIndicator">Waiting for players...</div>
-  <div id="calledNumbers"></div>
+  </header>
 
-  <div class="board-container">
-    <div class="player-board">
-      <h2>Your Board</h2>
+  <div id="roomSetup">
+    <button id="createRoomBtn">Create Room</button>
+    <input type="text" id="joinCode" placeholder="Enter Room Code">
+    <button id="joinRoomBtn">Join Room</button>
+  </div>
+
+  <div id="gameArea" class="hidden">
+    <div class="bingo">
+      <div class="letter" id="b">B</div>
+      <div class="letter" id="i">I</div>
+      <div class="letter" id="n">N</div>
+      <div class="letter" id="g">G</div>
+      <div class="letter" id="o">O</div>
+    </div>
+
+    <div class="card">
       <div class="grid" id="grid"></div>
-      <div id="winner"></div>
+    </div>
+
+    <div class="controls">
+      <button id="newGameBtn">New Board</button>
+      <div id="bingoMessage">🎉 BINGO! 🎉</div>
+      <div id="turnIndicator"></div>
+      <div id="calledNumbers"></div>
     </div>
   </div>
 </div>
@@ -72,165 +95,143 @@ const firebaseConfig = {
   appId: "1:157740745674:web:a4bdabb3bc8a05d024c533",
   measurementId: "G-88SZ629W0B"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const SIZE=5;
-let boardNums=[], cells=[], calledNumbers=[], bingo=false;
+const SIZE = 5;
+let cells=[], completed=new Set(), bingo=false, audioReady=false, completedLines=0;
 let playerNum, roomCode;
+const sound = document.getElementById('sound');
+sound.volume=1;
 
-const grid=document.getElementById('grid');
-const turnIndicator=document.getElementById('turnIndicator');
-const calledNumbersDiv=document.getElementById('calledNumbers');
-const sound=document.getElementById('sound');
+document.getElementById('theme').onchange = e => {document.body.className = e.target.value;};
 
-const roomSetupDiv=document.getElementById('roomSetup');
-const gameAreaDiv=document.getElementById('gameArea');
-const roomCodeDisplay=document.getElementById('roomCodeDisplay');
-const newGameBtn=document.getElementById('newGameBtn');
-const themeSelect=document.getElementById('themeSelect');
-
-function generateBoard(){return [...Array(25).keys()].map(i=>i+1).sort(()=>Math.random()-0.5);}
-
-function populateGrid(){
-  grid.innerHTML=''; cells.length=0;
-  boardNums.forEach((n,i)=>{
-    const cell=document.createElement('div');
-    cell.className='cell';
-    cell.textContent=n;
-
-    cell.onclick = () => {
-      if(bingo) return;
-      db.ref('rooms/'+roomCode).once('value').then(snapshot=>{
-        const data = snapshot.val(); if(!data) return;
-        // Alternate turns enforcement
-        if(data.currentPlayer !== playerNum) return;
-
-        const called = (data.calledNumbers||[]).map(Number);
-        if(!called.includes(Number(n))){
-          db.ref('rooms/'+roomCode).update({
-            calledNumbers:[...called,Number(n)],
-            currentPlayer: playerNum===1?2:1
-          });
-        }
-      });
-    };
-
-    cells.push(cell);
-    grid.appendChild(cell);
-  });
-}
-
-function applyTheme(theme){
-  if(theme==='pastel'){document.body.style.background='#fde2e4'; document.querySelector('.player-board').style.background='#fff'; document.querySelector('.player-board').style.color='#000';}
-  if(theme==='lavender'){document.body.style.background='#e6e6fa'; document.querySelector('.player-board').style.background='#f5f0ff'; document.querySelector('.player-board').style.color='#000';}
-  if(theme==='neon'){document.body.style.background='#000'; document.querySelector('.player-board').style.background='#111'; document.querySelector('.player-board').style.color='#0ff';}
-}
-
-document.getElementById('createRoomBtn').onclick=function(){
+// --- Room setup ---
+document.getElementById('createRoomBtn').onclick = ()=>{
   roomCode=Math.random().toString(36).substring(2,7).toUpperCase();
   playerNum=1;
-  const board1=generateBoard(); const board2=generateBoard();
+  const board1=generateBoard(), board2=generateBoard();
   db.ref('rooms/'+roomCode).set({calledNumbers:[], board1, board2, players:{'1':true}, currentPlayer:1});
   startGame();
 };
-
-document.getElementById('joinRoomBtn').onclick=function(){
+document.getElementById('joinRoomBtn').onclick = ()=>{
   const code=document.getElementById('joinCode').value.trim().toUpperCase();
   if(!code) return alert("Enter room code");
-  db.ref('rooms/'+code).once('value').then(snapshot=>{
-    if(!snapshot.exists()) return alert("Room not found");
+  db.ref('rooms/'+code).once('value').then(s=>{
+    if(!s.exists()) return alert("Room not found");
     roomCode=code; playerNum=2;
     db.ref('rooms/'+roomCode+'/players/2').set(true);
     startGame();
   });
 };
 
-function startGame(){
-  roomSetupDiv.classList.add('hidden'); gameAreaDiv.classList.remove('hidden');
-  roomCodeDisplay.textContent=roomCode;
-
-  themeSelect.addEventListener('change',()=>applyTheme(themeSelect.value));
-  applyTheme(themeSelect.value);
-
-  db.ref('rooms/'+roomCode).on('value', snapshot=>{
-    const data=snapshot.val(); if(!data) return;
-
-    const boardKey = playerNum===1?'board1':'board2';
-    if(JSON.stringify(boardNums) !== JSON.stringify(data[boardKey])){
-      boardNums = data[boardKey];
-      populateGrid();
-    }
-
-    calledNumbers = (data.calledNumbers||[]).map(Number);
-    calledNumbersDiv.textContent="Called Numbers: "+calledNumbers.join(', ');
-
-    // Waiting / turn message
-    const playerCount = data.players ? Object.keys(data.players).length : 0;
-    if(playerCount < 2){
-      turnIndicator.textContent = "Waiting for second player...";
-    } else {
-      turnIndicator.textContent = data.currentPlayer === playerNum ? "Your turn" : "Opponent's turn";
-    }
-
-    cells.forEach(c=>{c.classList.remove('marked','completed');});
-    highlightCompletedLines();
-    checkBingo();
+// --- Generate board offline style ---
+function generateBoard(){return [...Array(25).keys()].map(i=>i+1).sort(()=>Math.random()-0.5);}
+function populateGrid(){
+  const grid=document.getElementById('grid');
+  grid.innerHTML=''; cells.length=0; completed.clear(); bingo=false; completedLines=0;
+  document.getElementById('bingoMessage').classList.remove('show');
+  [...Array(25).keys()].map(i=>i+1).sort(()=>Math.random()-0.5).forEach(n=>{
+    const cell=document.createElement('div');
+    cell.className='cell'; cell.textContent=n;
+    cell.onclick = ()=>{
+      if(!audioReady){sound.play().catch(()=>{});sound.pause();audioReady=true;}
+      // --- Firebase logic ---
+      db.ref('rooms/'+roomCode).once('value').then(s=>{
+        const data=s.val(); if(!data) return;
+        if(data.currentPlayer!==playerNum) return;
+        const called = (data.calledNumbers||[]).map(Number);
+        if(!called.includes(Number(n))){
+          db.ref('rooms/'+roomCode).update({
+            calledNumbers:[...called,Number(n)],
+            currentPlayer:playerNum===1?2:1
+          });
+        }
+      });
+    };
+    cells.push(cell); grid.appendChild(cell);
   });
 }
 
-newGameBtn.onclick=function(){
-  const board1=generateBoard(); const board2=generateBoard();
-  db.ref('rooms/'+roomCode).update({calledNumbers:[], board1, board2, currentPlayer:1});
-  bingo=false; document.getElementById('winner').textContent='';
-};
+// --- Game start ---
+function startGame(){
+  document.getElementById('roomSetup').classList.add('hidden');
+  document.getElementById('gameArea').classList.remove('hidden');
+  db.ref('rooms/'+roomCode).on('value', snapshot=>{
+    const data=snapshot.val(); if(!data) return;
+    const boardKey = playerNum===1?'board1':'board2';
+    if(cells.length===0 || JSON.stringify(data[boardKey])!==JSON.stringify(cells.map(c=>Number(c.textContent)))){
+      populateGrid();
+      // Update numbers to match server
+      const nums=data[boardKey]; cells.forEach((c,i)=>c.textContent=nums[i]);
+    }
 
-function highlightCompletedLines(){
+    // Update called numbers
+    const calledNumbers = (data.calledNumbers||[]).map(Number);
+    document.getElementById('calledNumbers').textContent="Called: "+calledNumbers.join(', ');
+
+    // Turn indicator
+    const playerCount = data.players?Object.keys(data.players).length:0;
+    if(playerCount<2) document.getElementById('turnIndicator').textContent="Waiting for second player...";
+    else document.getElementById('turnIndicator').textContent= data.currentPlayer===playerNum?"Your turn":"Opponent's turn";
+
+    highlightCompletedLines(calledNumbers);
+  });
+}
+
+// --- Highlight and Bingo logic (offline style) ---
+function highlightCompletedLines(calledNumbers){
   const lines=[];
   for(let r=0;r<SIZE;r++) lines.push([...Array(SIZE)].map((_,c)=>r*SIZE+c));
   for(let c=0;c<SIZE;c++) lines.push([...Array(SIZE)].map((_,r)=>r*SIZE+c));
-
-  const calledNumSet = new Set(calledNumbers.map(Number));
-
-  lines.forEach(line=>{
-    if(line.every(i=>calledNumSet.has(Number(boardNums[i])))){
-      line.forEach(i=>cells[i].classList.add('completed'));
+  let currentCompleted=0;
+  lines.forEach((l,i)=>{
+    if(l.every(x=>calledNumbers.includes(Number(cells[x].textContent)))){
+      l.forEach(x=>cells[x].classList.add('completed'));
+      completed.add(i);
+      currentCompleted++;
     } else {
-      line.forEach(i=>{
-        if(calledNumSet.has(Number(boardNums[i]))) cells[i].classList.add('marked');
+      l.forEach(x=>{
+        if(calledNumbers.includes(Number(cells[x].textContent))) cells[x].classList.add('marked');
       });
     }
   });
-}
 
-function checkBingo(){
-  if(bingo) return;
-  const lines=[];
-  for(let r=0;r<SIZE;r++) lines.push([...Array(SIZE)].map((_,c)=>r*SIZE+c));
-  for(let c=0;c<SIZE;c++) lines.push([...Array(SIZE)].map((_,r)=>r*SIZE+c));
+  ['b','i','n','g','o'].forEach((id,i)=>{document.getElementById(id).classList.toggle('active', completed.size>i);});
 
-  const calledSet = new Set(calledNumbers.map(Number));
-  let won = false;
-  lines.forEach(line=>{
-    if(line.every(i=>calledSet.has(Number(boardNums[i])))) won=true;
-  });
-
-  if(won){
+  if(completed.size>=5 && !bingo){
     bingo=true;
-    document.getElementById('winner').textContent="🎉 BINGO!";
-    sound.currentTime=0;
-    sound.play();
+    document.getElementById('bingoMessage').classList.add('show');
+    sound.currentTime=0; sound.play().catch(()=>{});
     confetti();
   }
 }
 
-/* CONFETTI */
+// --- New board ---
+document.getElementById('newGameBtn').onclick=()=>{
+  const board1=generateBoard(), board2=generateBoard();
+  db.ref('rooms/'+roomCode).update({calledNumbers:[], board1, board2, currentPlayer:1});
+  bingo=false; completed.clear(); completedLines=0;
+  document.getElementById('bingoMessage').classList.remove('show');
+};
+
+// --- Confetti ---
+let confettiFrameId=null;
 function confetti(){
-  const c=document.getElementById('confetti'); const ctx=c.getContext('2d'); c.width=innerWidth; c.height=innerHeight;
+  const c=document.getElementById('confetti'); const ctx=c.getContext('2d');
+  c.width=innerWidth; c.height=innerHeight;
   const pieces=[...Array(120)].map(()=>({x:Math.random()*c.width,y:-20,r:Math.random()*6+4,v:Math.random()*3+2,col:['#f48fb1','#ce93d8','#b39ddb','#80cbc4','#a5d6a7'][Math.floor(Math.random()*5)]}));
   let frame=0;
-  function draw(){ctx.clearRect(0,0,c.width,c.height);pieces.forEach(p=>{p.y+=p.v;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();}); if(frame++<180)requestAnimationFrame(draw);}draw();
+  function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    pieces.forEach(p=>{p.y+=p.v;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();});
+    if(frame++<180) confettiFrameId=requestAnimationFrame(draw); else stopConfetti();
+  }
+  draw();
 }
+function stopConfetti(){if(confettiFrameId){cancelAnimationFrame(confettiFrameId);confettiFrameId=null;}
+const c=document.getElementById('confetti');const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}
 </script>
 </body>
 </html>
