@@ -440,7 +440,14 @@ function initApp() {
       // Switch turn
       updates[`rooms/${roomId}/turn`] = playerId === "P1" ? "P2" : "P1";
       
+      // Store who made this move (for winner determination)
+      updates[`rooms/${roomId}/lastMove`] = playerId;
+      
       await db.ref().update(updates);
+      
+      // Check if anyone won after this move
+      setTimeout(() => checkForWinAfterMove(), 100);
+      
     } catch (error) {
       console.error('Error marking cell:', error);
       infoBox.innerText = "❌ Error marking cell. Try again.";
@@ -472,29 +479,81 @@ function initApp() {
     
     if (count >= 5) {
       bingoLabel.innerText = "🎉 BINGO! 🎉";
-      declareWinner();
     } else {
       bingoLabel.innerText = letters.slice(0, count);
     }
+    
+    return count >= 5; // Return true if BINGO achieved
   }
-
-  /* ===== Declare winner ===== */
-  async function declareWinner() {
+  
+  /* ===== Check for win after move ===== */
+  async function checkForWinAfterMove() {
     try {
-      // Check if already has winner
+      // Check if there's already a winner
       const winnerSnap = await db.ref(`rooms/${roomId}/winner`).once('value');
-      if (!winnerSnap.val()) {
-        // Set winner
-        await db.ref(`rooms/${roomId}/winner`).set(playerId);
+      if (winnerSnap.val()) return; // Already has a winner
+      
+      // Get the last move player
+      const lastMoveSnap = await db.ref(`rooms/${roomId}/lastMove`).once('value');
+      const lastMovePlayer = lastMoveSnap.val();
+      
+      if (!lastMovePlayer) return;
+      
+      // Check BOTH players for BINGO (not just the one who moved)
+      const boardsSnap = await db.ref(`rooms/${roomId}/boards`).once('value');
+      const marksSnap = await db.ref(`rooms/${roomId}/marks`).once('value');
+      
+      const boards = boardsSnap.val() || {};
+      const marks = marksSnap.val() || {};
+      
+      let winner = null;
+      
+      // Check both players
+      for (const pid of ['P1', 'P2']) {
+        if (!boards[pid]) continue;
+        
+        const marksObj = marks[pid] || {};
+        const marked = Array(25).fill(false);
+        Object.keys(marksObj).forEach(idx => {
+          marked[Number(idx)] = true;
+        });
+        
+        // Count completed lines
+        let completedCount = 0;
+        
+        // Check rows
+        for (let r = 0; r < 5; r++) {
+          const idxs = [0, 1, 2, 3, 4].map(c => r * 5 + c);
+          if (idxs.every(i => marked[i])) completedCount++;
+        }
+        
+        // Check columns
+        for (let c = 0; c < 5; c++) {
+          const idxs = [0, 1, 2, 3, 4].map(r => r * 5 + c);
+          if (idxs.every(i => marked[i])) completedCount++;
+        }
+        
+        // If this player has BINGO
+        if (completedCount >= 5) {
+          // If multiple players have BINGO simultaneously, prioritize the one who made the move
+          if (!winner || pid === lastMovePlayer) {
+            winner = pid;
+          }
+        }
+      }
+      
+      // Declare the winner
+      if (winner) {
+        await db.ref(`rooms/${roomId}/winner`).set(winner);
         
         // Increment score
         const scoresSnap = await db.ref(`rooms/${roomId}/scores`).once('value');
         const currentScores = scoresSnap.val() || { P1: 0, P2: 0 };
-        currentScores[playerId] = (currentScores[playerId] || 0) + 1;
+        currentScores[winner] = (currentScores[winner] || 0) + 1;
         await db.ref(`rooms/${roomId}/scores`).set(currentScores);
       }
     } catch (error) {
-      console.error('Error declaring winner:', error);
+      console.error('Error checking for win:', error);
     }
   }
 }
