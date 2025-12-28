@@ -49,33 +49,25 @@ canvas {position:fixed;inset:0;pointer-events:none;}
     </select>
   </header>
 
-  <div id="roomSetup">
-    <button id="createRoomBtn">Create Room</button>
-    <input type="text" id="joinCode" placeholder="Enter Room Code">
-    <button id="joinRoomBtn">Join Room</button>
-  </div>
+<div id="roomSetup">
+  <button id="createRoomBtn">Create Room</button>
+  <input type="text" id="joinCode" placeholder="Enter Room Code">
+  <button id="joinRoomBtn">Join Room</button>
+  <div id="roomInfo" style="margin-top:10px;"></div>
+</div>
 
-  <div id="gameArea" class="hidden">
-    <div class="bingo">
-      <div class="letter" id="b">B</div>
-      <div class="letter" id="i">I</div>
-      <div class="letter" id="n">N</div>
-      <div class="letter" id="g">G</div>
-      <div class="letter" id="o">O</div>
-    </div>
-
-    <div class="card">
-      <div class="grid" id="grid"></div>
-    </div>
-
-    <div class="controls">
-      <button id="newGameBtn">New Board</button>
-      <div id="bingoMessage">🎉 BINGO! 🎉</div>
-      <div id="turnIndicator"></div>
-      <div id="calledNumbers"></div>
-    </div>
+<div id="gameArea" class="hidden">
+  <div class="bingo">...</div>
+  <div class="card"><div class="grid" id="grid"></div></div>
+  <div class="controls">
+    <button id="newGameBtn">New Board</button>
+    <div id="bingoMessage">🎉 BINGO! 🎉</div>
+    <div id="turnIndicator"></div>
+    <div id="calledNumbers"></div>
   </div>
 </div>
+
+
 
 <audio id="sound" src="sound-effect-bingo-122339.mp3"></audio>
 <canvas id="confetti"></canvas>
@@ -113,8 +105,10 @@ document.getElementById('createRoomBtn').onclick = ()=>{
   playerNum=1;
   const board1=generateBoard(), board2=generateBoard();
   db.ref('rooms/'+roomCode).set({calledNumbers:[], board1, board2, players:{'1':true}, currentPlayer:1});
+  document.getElementById('roomInfo').textContent = `Room created! Share this code: ${roomCode}`;
   startGame();
 };
+
 document.getElementById('joinRoomBtn').onclick = ()=>{
   const code=document.getElementById('joinCode').value.trim().toUpperCase();
   if(!code) return alert("Enter room code");
@@ -122,6 +116,7 @@ document.getElementById('joinRoomBtn').onclick = ()=>{
     if(!s.exists()) return alert("Room not found");
     roomCode=code; playerNum=2;
     db.ref('rooms/'+roomCode+'/players/2').set(true);
+    document.getElementById('roomInfo').textContent = `Joined room: ${roomCode}`;
     startGame();
   });
 };
