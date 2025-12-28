@@ -59,10 +59,14 @@ body.neon #bingoLabel{color:#48c774;}
 
   <div id="game" class="card hidden">
     <div id="roomLabel" class="status"></div>
+    <div id="scoreBoard" class="status" style="background:#fff3cd;padding:10px;border-radius:8px;margin:10px 0;font-size:18px;">
+      <strong>Score:</strong> P1: <span id="p1Score">0</span> | P2: <span id="p2Score">0</span>
+    </div>
     <div id="turnLabel" class="status"></div>
     <div class="info-box" id="infoBox">Waiting for game to start...</div>
     <div id="board" class="grid"></div>
     <div id="bingoLabel" class="status"></div>
+    <button id="newGameBtn" class="hidden">New Game</button>
   </div>
 </div>
 
@@ -121,6 +125,7 @@ function initApp() {
   const createBtn = document.getElementById('createBtn');
   const joinBtn = document.getElementById('joinBtn');
   const startBtn = document.getElementById('startBtn');
+  const newGameBtn = document.getElementById('newGameBtn');
   const roomInput = document.getElementById('roomInput');
   const lobbyStatus = document.getElementById('lobbyStatus');
   const lobbyCard = document.getElementById('lobby');
@@ -132,6 +137,8 @@ function initApp() {
   const bingoLabel = document.getElementById('bingoLabel');
   const themeSelect = document.getElementById('themeSelect');
   const infoBox = document.getElementById('infoBox');
+  const p1Score = document.getElementById('p1Score');
+  const p2Score = document.getElementById('p2Score');
 
   /* ===== Theme change ===== */
   themeSelect.onchange = e => document.body.className = e.target.value;
@@ -157,7 +164,8 @@ function initApp() {
         started: false,
         turn: "P1",
         boards: {},
-        marks: {}
+        marks: {},
+        scores: { P1: 0, P2: 0 }
       });
       
       enterRoomUI();
@@ -256,6 +264,37 @@ function initApp() {
     }
   };
 
+  /* ===== New Game ===== */
+  newGameBtn.onclick = async () => {
+    try {
+      // Reset local state
+      myBoard = [];
+      myMarked = [];
+      completedLines.clear();
+      gameStarted = false;
+      
+      // Generate new boards
+      const p1Board = shuffle([...Array(25).keys()].map(n => n + 1));
+      const p2Board = shuffle([...Array(25).keys()].map(n => n + 1));
+      
+      const updates = {};
+      updates[`rooms/${roomId}/boards/P1`] = p1Board;
+      updates[`rooms/${roomId}/boards/P2`] = p2Board;
+      updates[`rooms/${roomId}/marks/P1`] = {};
+      updates[`rooms/${roomId}/marks/P2`] = {};
+      updates[`rooms/${roomId}/turn`] = "P1";
+      updates[`rooms/${roomId}/winner`] = null;
+      updates[`rooms/${roomId}/started`] = true;
+      
+      await db.ref().update(updates);
+      
+      // Hide new game button
+      newGameBtn.classList.add('hidden');
+    } catch (error) {
+      alert('Error starting new game: ' + error.message);
+    }
+  };
+
   /* ===== Room listener ===== */
   function attachRoomListener() {
     const roomRef = db.ref(`rooms/${roomId}`);
@@ -266,6 +305,12 @@ function initApp() {
       
       const players = Object.keys(data.players || {});
       lobbyStatus.innerText = `Players: ${players.length}/2`;
+      
+      // Update scores
+      if (data.scores) {
+        p1Score.innerText = data.scores.P1 || 0;
+        p2Score.innerText = data.scores.P2 || 0;
+      }
       
       // Update start button - only show for owner when 2 players are in
       if (isOwner) {
@@ -295,8 +340,15 @@ function initApp() {
       if (data.winner) {
         const winnerText = data.winner === playerId ? "🎉 YOU WIN! 🎉" : `${data.winner} Won!`;
         bingoLabel.innerHTML = `<div class="winner-msg">${winnerText}</div>`;
-        infoBox.innerText = "Game Over!";
+        infoBox.innerText = "Game Over! " + (data.winner === playerId ? "You get a point!" : data.winner + " gets a point!");
+        
+        // Show New Game button (anyone can start a new game)
+        newGameBtn.classList.remove('hidden');
+        newGameBtn.innerText = "🔄 Play Again";
         return;
+      } else {
+        // Hide new game button if no winner
+        newGameBtn.classList.add('hidden');
       }
       
       // Game started - load board and switch to game view
@@ -428,7 +480,14 @@ function initApp() {
       // Check if already has winner
       const winnerSnap = await db.ref(`rooms/${roomId}/winner`).once('value');
       if (!winnerSnap.val()) {
+        // Set winner
         await db.ref(`rooms/${roomId}/winner`).set(playerId);
+        
+        // Increment score
+        const scoresSnap = await db.ref(`rooms/${roomId}/scores`).once('value');
+        const currentScores = scoresSnap.val() || { P1: 0, P2: 0 };
+        currentScores[playerId] = (currentScores[playerId] || 0) + 1;
+        await db.ref(`rooms/${roomId}/scores`).set(currentScores);
       }
     } catch (error) {
       console.error('Error declaring winner:', error);
