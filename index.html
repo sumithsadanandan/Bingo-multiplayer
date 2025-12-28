@@ -34,12 +34,15 @@ body.neon .info-box{background:#2d4a3e;}
 #bingoLabel{font-size:28px;font-weight:800;color:#6c5ce7;margin-top:16px;}
 body.neon #bingoLabel{color:#48c774;}
 .winner-msg{color:#e74c3c;font-size:20px;font-weight:800;}
+.loading{text-align:center;padding:20px;color:#999;}
 </style>
 </head>
 <body class="pastel">
 <header>🎉 Sumith's Bingo</header>
 <div class="wrap">
-  <div id="lobby" class="card">
+  <div id="loading" class="loading">Loading Firebase...</div>
+  
+  <div id="lobby" class="card hidden">
     <button id="createBtn">Create Room</button>
     <input id="roomInput" placeholder="Enter room code to join">
     <button id="joinBtn">Join Room</button>
@@ -61,298 +64,344 @@ body.neon #bingoLabel{color:#48c774;}
   </div>
 </div>
 
+<!-- Firebase v9 Compat SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
-/* ====== Firebase Config ====== */
-firebase.initializeApp({
-  apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
-  authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
-  databaseURL: "https://bingo-multiplayer-315fb-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "bingo-multiplayer-315fb",
-  storageBucket: "bingo-multiplayer-315fb.firebasestorage.app",
-  messagingSenderId: "157740745674",
-  appId: "1:157740745674:web:a4bdabb3bc8a05d024c533",
-  measurementId: "G-88SZ629W0B"
+// Wait for Firebase to load
+window.addEventListener('load', function() {
+  // Check if Firebase loaded
+  if (typeof firebase === 'undefined') {
+    document.getElementById('loading').innerHTML = '❌ Firebase failed to load. Please check your internet connection and refresh.';
+    return;
+  }
+  
+  initApp();
 });
-const db = firebase.database();
 
-/* ===== Variables ===== */
-let roomId = null;
-let playerId = null;
-let isOwner = false;
-let myBoard = [];
-let myMarked = [];
-let completedLines = new Set();
-let gameStarted = false;
-let currentTurn = null;
-let listenersAttached = false;
-
-/* UI refs */
-const createBtn = document.getElementById('createBtn');
-const joinBtn = document.getElementById('joinBtn');
-const startBtn = document.getElementById('startBtn');
-const roomInput = document.getElementById('roomInput');
-const lobbyStatus = document.getElementById('lobbyStatus');
-const lobbyCard = document.getElementById('lobby');
-const gameCard = document.getElementById('game');
-const roomLabel = document.getElementById('roomLabel');
-const turnLabel = document.getElementById('turnLabel');
-const boardEl = document.getElementById('board');
-const bingoLabel = document.getElementById('bingoLabel');
-const themeSelect = document.getElementById('themeSelect');
-const infoBox = document.getElementById('infoBox');
-
-/* ===== Theme change ===== */
-themeSelect.onchange = e => document.body.className = e.target.value;
-
-/* ===== Helper ===== */
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-/* ===== Create Room ===== */
-createBtn.onclick = async () => {
-  roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
-  playerId = "P1";
-  isOwner = true;
-  
-  await db.ref(`rooms/${roomId}`).set({
-    players: { P1: true },
-    started: false,
-    turn: "P1",
-    boards: {},
-    marks: {}
-  });
-  
-  enterRoomUI();
-};
-
-/* ===== Join Room ===== */
-joinBtn.onclick = async () => {
-  const val = (roomInput.value || "").trim().toUpperCase();
-  if (!val) {
-    alert("Enter room code");
+function initApp() {
+  /* ====== Firebase Config ====== */
+  try {
+    firebase.initializeApp({
+      apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
+      authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
+      databaseURL: "https://bingo-multiplayer-315fb-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "bingo-multiplayer-315fb",
+      storageBucket: "bingo-multiplayer-315fb.firebasestorage.app",
+      messagingSenderId: "157740745674",
+      appId: "1:157740745674:web:a4bdabb3bc8a05d024c533",
+      measurementId: "G-88SZ629W0B"
+    });
+  } catch (error) {
+    document.getElementById('loading').innerHTML = '❌ Firebase initialization error: ' + error.message;
     return;
   }
   
-  // Check if room exists
-  const roomSnap = await db.ref(`rooms/${val}`).once('value');
-  if (!roomSnap.exists()) {
-    alert("Room not found!");
-    return;
-  }
+  const db = firebase.database();
   
-  const roomData = roomSnap.val();
-  const players = Object.keys(roomData.players || {});
-  
-  if (players.length >= 2) {
-    alert("Room is full!");
-    return;
-  }
-  
-  roomId = val;
-  playerId = "P2";
-  isOwner = false;
-  
-  await db.ref(`rooms/${roomId}/players/P2`).set(true);
-  enterRoomUI();
-};
+  // Hide loading, show lobby
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('lobby').classList.remove('hidden');
 
-/* ===== Enter game UI ===== */
-function enterRoomUI() {
-  lobbyCard.classList.add('hidden');
-  gameCard.classList.remove('hidden');
-  roomLabel.innerText = `Room: ${roomId} | You are Player ${playerId.substring(1)}`;
-  
-  if (!listenersAttached) {
-    attachRoomListener();
-    listenersAttached = true;
-  }
-}
+  /* ===== Variables ===== */
+  let roomId = null;
+  let playerId = null;
+  let isOwner = false;
+  let myBoard = [];
+  let myMarked = [];
+  let completedLines = new Set();
+  let gameStarted = false;
+  let currentTurn = null;
+  let listenersAttached = false;
 
-/* ===== Start game ===== */
-startBtn.onclick = async () => {
-  const snap = await db.ref(`rooms/${roomId}/players`).once('value');
-  const playersObj = snap.val() || {};
-  
-  if (Object.keys(playersObj).length < 2) {
-    alert("Need 2 players to start!");
-    return;
-  }
-  
-  // Generate boards for both players
-  const p1Board = shuffle([...Array(25).keys()].map(n => n + 1));
-  const p2Board = shuffle([...Array(25).keys()].map(n => n + 1));
-  
-  const updates = {};
-  updates[`rooms/${roomId}/boards/P1`] = p1Board;
-  updates[`rooms/${roomId}/boards/P2`] = p2Board;
-  updates[`rooms/${roomId}/marks/P1`] = {};
-  updates[`rooms/${roomId}/marks/P2`] = {};
-  updates[`rooms/${roomId}/started`] = true;
-  updates[`rooms/${roomId}/turn`] = "P1";
-  updates[`rooms/${roomId}/winner`] = null;
-  
-  await db.ref().update(updates);
-};
+  /* UI refs */
+  const createBtn = document.getElementById('createBtn');
+  const joinBtn = document.getElementById('joinBtn');
+  const startBtn = document.getElementById('startBtn');
+  const roomInput = document.getElementById('roomInput');
+  const lobbyStatus = document.getElementById('lobbyStatus');
+  const lobbyCard = document.getElementById('lobby');
+  const gameCard = document.getElementById('game');
+  const roomLabel = document.getElementById('roomLabel');
+  const turnLabel = document.getElementById('turnLabel');
+  const boardEl = document.getElementById('board');
+  const bingoLabel = document.getElementById('bingoLabel');
+  const themeSelect = document.getElementById('themeSelect');
+  const infoBox = document.getElementById('infoBox');
 
-/* ===== Room listener ===== */
-function attachRoomListener() {
-  const roomRef = db.ref(`rooms/${roomId}`);
-  
-  roomRef.on('value', snap => {
-    const data = snap.val();
-    if (!data) return;
-    
-    const players = Object.keys(data.players || {});
-    lobbyStatus.innerText = `Players: ${players.length}/2`;
-    
-    // Update start button
-    if (isOwner) {
-      if (players.length === 2 && !data.started) {
-        startBtn.classList.remove('hidden');
-        startBtn.disabled = false;
-      } else {
-        startBtn.disabled = true;
-      }
+  /* ===== Theme change ===== */
+  themeSelect.onchange = e => document.body.className = e.target.value;
+
+  /* ===== Helper ===== */
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    
-    // Update turn
-    currentTurn = data.turn;
-    const isMyTurn = currentTurn === playerId;
-    turnLabel.innerText = isMyTurn ? "🟢 Your Turn!" : `⏳ Waiting for ${currentTurn}`;
-    turnLabel.style.color = isMyTurn ? "#27ae60" : "#e67e22";
-    
-    // Check for winner
-    if (data.winner) {
-      const winnerText = data.winner === playerId ? "🎉 YOU WIN! 🎉" : `${data.winner} Won!`;
-      bingoLabel.innerHTML = `<div class="winner-msg">${winnerText}</div>`;
-      infoBox.innerText = "Game Over!";
-      return;
-    }
-    
-    // Game started - load board
-    if (data.started && data.boards && data.boards[playerId]) {
-      gameStarted = true;
+    return arr;
+  }
+
+  /* ===== Create Room ===== */
+  createBtn.onclick = async () => {
+    try {
+      roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
+      playerId = "P1";
+      isOwner = true;
       
-      // Load my board if not already loaded
-      if (myBoard.length === 0) {
-        myBoard = data.boards[playerId];
-        myMarked = Array(25).fill(false);
-        completedLines.clear();
-      }
-      
-      // Update marks
-      const marksObj = data.marks?.[playerId] || {};
-      myMarked = Array(25).fill(false);
-      Object.keys(marksObj).forEach(idx => {
-        myMarked[Number(idx)] = true;
+      await db.ref(`rooms/${roomId}`).set({
+        players: { P1: true },
+        started: false,
+        turn: "P1",
+        boards: {},
+        marks: {}
       });
       
-      infoBox.innerText = isMyTurn ? "Click a number to mark it" : "Wait for your turn";
-      renderBoard();
-      updateBingoLabel();
+      enterRoomUI();
+    } catch (error) {
+      alert('Error creating room: ' + error.message);
     }
-  });
-}
+  };
 
-/* ===== Render board ===== */
-function renderBoard() {
-  if (myBoard.length === 0) return;
-  
-  boardEl.innerHTML = '';
-  const isMyTurn = currentTurn === playerId;
-  
-  for (let i = 0; i < 25; i++) {
-    const n = myBoard[i];
-    const cell = document.createElement('div');
-    cell.className = 'cell';
+  /* ===== Join Room ===== */
+  joinBtn.onclick = async () => {
+    try {
+      const val = (roomInput.value || "").trim().toUpperCase();
+      if (!val) {
+        alert("Enter room code");
+        return;
+      }
+      
+      // Check if room exists
+      const roomSnap = await db.ref(`rooms/${val}`).once('value');
+      if (!roomSnap.exists()) {
+        alert("Room not found!");
+        return;
+      }
+      
+      const roomData = roomSnap.val();
+      const players = Object.keys(roomData.players || {});
+      
+      if (players.length >= 2) {
+        alert("Room is full!");
+        return;
+      }
+      
+      roomId = val;
+      playerId = "P2";
+      isOwner = false;
+      
+      await db.ref(`rooms/${roomId}/players/P2`).set(true);
+      enterRoomUI();
+    } catch (error) {
+      alert('Error joining room: ' + error.message);
+    }
+  };
+
+  /* ===== Enter game UI ===== */
+  function enterRoomUI() {
+    lobbyCard.classList.add('hidden');
+    gameCard.classList.remove('hidden');
+    roomLabel.innerText = `Room: ${roomId} | You are Player ${playerId.substring(1)}`;
     
-    if (myMarked[i]) {
-      cell.classList.add('marked');
+    if (!listenersAttached) {
+      attachRoomListener();
+      listenersAttached = true;
+    }
+  }
+
+  /* ===== Start game ===== */
+  startBtn.onclick = async () => {
+    try {
+      const snap = await db.ref(`rooms/${roomId}/players`).once('value');
+      const playersObj = snap.val() || {};
+      
+      if (Object.keys(playersObj).length < 2) {
+        alert("Need 2 players to start!");
+        return;
+      }
+      
+      // Generate boards for both players
+      const p1Board = shuffle([...Array(25).keys()].map(n => n + 1));
+      const p2Board = shuffle([...Array(25).keys()].map(n => n + 1));
+      
+      const updates = {};
+      updates[`rooms/${roomId}/boards/P1`] = p1Board;
+      updates[`rooms/${roomId}/boards/P2`] = p2Board;
+      updates[`rooms/${roomId}/marks/P1`] = {};
+      updates[`rooms/${roomId}/marks/P2`] = {};
+      updates[`rooms/${roomId}/started`] = true;
+      updates[`rooms/${roomId}/turn`] = "P1";
+      updates[`rooms/${roomId}/winner`] = null;
+      
+      await db.ref().update(updates);
+    } catch (error) {
+      alert('Error starting game: ' + error.message);
+    }
+  };
+
+  /* ===== Room listener ===== */
+  function attachRoomListener() {
+    const roomRef = db.ref(`rooms/${roomId}`);
+    
+    roomRef.on('value', snap => {
+      const data = snap.val();
+      if (!data) return;
+      
+      const players = Object.keys(data.players || {});
+      lobbyStatus.innerText = `Players: ${players.length}/2`;
+      
+      // Update start button
+      if (isOwner) {
+        if (players.length === 2 && !data.started) {
+          startBtn.classList.remove('hidden');
+          startBtn.disabled = false;
+        } else {
+          startBtn.disabled = true;
+        }
+      }
+      
+      // Update turn
+      currentTurn = data.turn;
+      const isMyTurn = currentTurn === playerId;
+      turnLabel.innerText = isMyTurn ? "🟢 Your Turn!" : `⏳ Waiting for ${currentTurn}`;
+      turnLabel.style.color = isMyTurn ? "#27ae60" : "#e67e22";
+      
+      // Check for winner
+      if (data.winner) {
+        const winnerText = data.winner === playerId ? "🎉 YOU WIN! 🎉" : `${data.winner} Won!`;
+        bingoLabel.innerHTML = `<div class="winner-msg">${winnerText}</div>`;
+        infoBox.innerText = "Game Over!";
+        return;
+      }
+      
+      // Game started - load board
+      if (data.started && data.boards && data.boards[playerId]) {
+        gameStarted = true;
+        
+        // Load my board if not already loaded
+        if (myBoard.length === 0) {
+          myBoard = data.boards[playerId];
+          myMarked = Array(25).fill(false);
+          completedLines.clear();
+        }
+        
+        // Update marks
+        const marksObj = data.marks?.[playerId] || {};
+        myMarked = Array(25).fill(false);
+        Object.keys(marksObj).forEach(idx => {
+          myMarked[Number(idx)] = true;
+        });
+        
+        infoBox.innerText = isMyTurn ? "Click a number to mark it" : "Wait for your turn";
+        renderBoard();
+        updateBingoLabel();
+      }
+    });
+  }
+
+  /* ===== Render board ===== */
+  function renderBoard() {
+    if (myBoard.length === 0) return;
+    
+    boardEl.innerHTML = '';
+    const isMyTurn = currentTurn === playerId;
+    
+    for (let i = 0; i < 25; i++) {
+      const n = myBoard[i];
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      
+      if (myMarked[i]) {
+        cell.classList.add('marked');
+      }
+      
+      if (!isMyTurn) {
+        cell.classList.add('not-my-turn');
+      }
+      
+      cell.innerText = n;
+      cell.onclick = () => onCellClick(i, n);
+      boardEl.appendChild(cell);
+    }
+  }
+
+  /* ===== Cell click ===== */
+  async function onCellClick(idx, number) {
+    try {
+      if (!gameStarted) return;
+      if (currentTurn !== playerId) {
+        infoBox.innerText = "⚠️ Not your turn!";
+        return;
+      }
+      if (myMarked[idx]) return;
+      
+      // Mark this number on ALL boards that have it
+      const boardsSnap = await db.ref(`rooms/${roomId}/boards`).once('value');
+      const boardsObj = boardsSnap.val() || {};
+      
+      const updates = {};
+      
+      Object.keys(boardsObj).forEach(pid => {
+        const board = boardsObj[pid];
+        const index = board.indexOf(number);
+        if (index >= 0) {
+          updates[`rooms/${roomId}/marks/${pid}/${index}`] = true;
+        }
+      });
+      
+      // Switch turn
+      updates[`rooms/${roomId}/turn`] = playerId === "P1" ? "P2" : "P1";
+      
+      await db.ref().update(updates);
+    } catch (error) {
+      console.error('Error marking cell:', error);
+      infoBox.innerText = "❌ Error marking cell. Try again.";
+    }
+  }
+
+  /* ===== Bingo logic ===== */
+  function updateBingoLabel() {
+    const letters = "BINGO";
+    completedLines.clear();
+    
+    // Check rows
+    for (let r = 0; r < 5; r++) {
+      const idxs = [0, 1, 2, 3, 4].map(c => r * 5 + c);
+      if (idxs.every(i => myMarked[i])) {
+        completedLines.add('R' + r);
+      }
     }
     
-    if (!isMyTurn) {
-      cell.classList.add('not-my-turn');
+    // Check columns
+    for (let c = 0; c < 5; c++) {
+      const idxs = [0, 1, 2, 3, 4].map(r => r * 5 + c);
+      if (idxs.every(i => myMarked[i])) {
+        completedLines.add('C' + c);
+      }
     }
     
-    cell.innerText = n;
-    cell.onclick = () => onCellClick(i, n);
-    boardEl.appendChild(cell);
-  }
-}
-
-/* ===== Cell click ===== */
-async function onCellClick(idx, number) {
-  if (!gameStarted) return;
-  if (currentTurn !== playerId) {
-    infoBox.innerText = "⚠️ Not your turn!";
-    return;
-  }
-  if (myMarked[idx]) return;
-  
-  // Mark this number on ALL boards that have it
-  const boardsSnap = await db.ref(`rooms/${roomId}/boards`).once('value');
-  const boardsObj = boardsSnap.val() || {};
-  
-  const updates = {};
-  
-  Object.keys(boardsObj).forEach(pid => {
-    const board = boardsObj[pid];
-    const index = board.indexOf(number);
-    if (index >= 0) {
-      updates[`rooms/${roomId}/marks/${pid}/${index}`] = true;
-    }
-  });
-  
-  // Switch turn
-  updates[`rooms/${roomId}/turn`] = playerId === "P1" ? "P2" : "P1";
-  
-  await db.ref().update(updates);
-}
-
-/* ===== Bingo logic ===== */
-function updateBingoLabel() {
-  const letters = "BINGO";
-  completedLines.clear();
-  
-  // Check rows
-  for (let r = 0; r < 5; r++) {
-    const idxs = [0, 1, 2, 3, 4].map(c => r * 5 + c);
-    if (idxs.every(i => myMarked[i])) {
-      completedLines.add('R' + r);
+    const count = completedLines.size;
+    
+    if (count >= 5) {
+      bingoLabel.innerText = "🎉 BINGO! 🎉";
+      declareWinner();
+    } else {
+      bingoLabel.innerText = letters.slice(0, count);
     }
   }
-  
-  // Check columns
-  for (let c = 0; c < 5; c++) {
-    const idxs = [0, 1, 2, 3, 4].map(r => r * 5 + c);
-    if (idxs.every(i => myMarked[i])) {
-      completedLines.add('C' + c);
-    }
-  }
-  
-  const count = completedLines.size;
-  
-  if (count >= 5) {
-    bingoLabel.innerText = "🎉 BINGO! 🎉";
-    declareWinner();
-  } else {
-    bingoLabel.innerText = letters.slice(0, count);
-  }
-}
 
-/* ===== Declare winner ===== */
-async function declareWinner() {
-  // Check if already has winner
-  const winnerSnap = await db.ref(`rooms/${roomId}/winner`).once('value');
-  if (!winnerSnap.val()) {
-    await db.ref(`rooms/${roomId}/winner`).set(playerId);
+  /* ===== Declare winner ===== */
+  async function declareWinner() {
+    try {
+      // Check if already has winner
+      const winnerSnap = await db.ref(`rooms/${roomId}/winner`).once('value');
+      if (!winnerSnap.val()) {
+        await db.ref(`rooms/${roomId}/winner`).set(playerId);
+      }
+    } catch (error) {
+      console.error('Error declaring winner:', error);
+    }
   }
 }
 </script>
