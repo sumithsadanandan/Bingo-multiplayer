@@ -1,67 +1,25 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sumith’s Bingo</title>
-
 <style>
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  background: #f6f4ff;
-}
-header {
-  text-align: center;
-  padding: 12px;
-  font-size: 22px;
-  font-weight: bold;
-}
-.container {
-  max-width: 420px;
-  margin: auto;
-  padding: 10px;
-}
-.card {
-  background: white;
-  padding: 14px;
-  border-radius: 14px;
-  box-shadow: 0 6px 16px rgba(0,0,0,.08);
-}
-button, input {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  font-size: 16px;
-}
-.grid {
-  display: grid;
-  grid-template-columns: repeat(5,1fr);
-  gap: 6px;
-  margin-top: 12px;
-}
-.cell {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ecebff;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 18px;
-  cursor: pointer;
-}
-.cell.marked { background: #b8f2c2; }
-.cell.line { background: #ffd8a8; }
+body { margin:0; font-family:system-ui,sans-serif; background:#f6f4ff; }
+header { text-align:center; padding:12px; font-size:22px; font-weight:bold; }
+.container { max-width:420px; margin:auto; padding:10px; }
+.card { background:white; padding:14px; border-radius:14px; box-shadow:0 6px 16px rgba(0,0,0,.08); }
+button,input { width:100%; padding:12px; margin-top:10px; font-size:16px; }
+.grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:12px; }
+.cell { aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:#ecebff; border-radius:8px; font-weight:600; font-size:18px; cursor:pointer; }
+.cell.marked { background:#b8f2c2; }
+.cell.line { background:#ffd8a8; }
 .hidden { display:none; }
 .status { text-align:center; margin-top:8px; font-weight:600; }
 </style>
 </head>
-
 <body>
 <header>🎉 Sumith’s Bingo 🎉</header>
-
 <div class="container">
 
 <div id="lobby" class="card">
@@ -80,35 +38,31 @@ button, input {
 
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
 firebase.initializeApp({
-   apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
+  apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
   authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
   databaseURL: "https://bingo-multiplayer-315fb-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "bingo-multiplayer-315fb",
+  storageBucket: "bingo-multiplayer-315fb.firebasestorage.app",
+  messagingSenderId: "157740745674",
+  appId: "1:157740745674:web:a4bdabb3bc8a05d024c533",
+  measurementId: "G-88SZ629W0B"
 });
 
 const db = firebase.database();
-
 let roomId, playerId, isOwner=false;
 let board=[], marked=[], completedLines = new Set();
+let boardMap = {}; // P1 and P2 boards
 
-/* ---------- LOBBY ---------- */
+/* LOBBY */
 function createRoom(){
   roomId = Math.random().toString(36).substring(2,7).toUpperCase();
-  playerId = "P1";
-  isOwner = true;
-
-  db.ref("rooms/"+roomId).set({
-    players: { P1:true },
-    started:false,
-    turn:"P1"
-  });
-
+  playerId = "P1"; isOwner=true;
+  db.ref("rooms/"+roomId).set({players:{P1:true},started:false,turn:"P1"});
   enterRoom();
 }
 
@@ -127,15 +81,11 @@ function enterRoom(){
   listenRoom();
 }
 
-/* ---------- GAME ---------- */
+/* GAME START */
 function startGame(){
   db.ref(`rooms/${roomId}/players`).once("value", snap=>{
-    const players = Object.keys(snap.val() || {});
-    if(players.length<2){
-      alert("Waiting for both players to join!");
-      return;
-    }
-    // Only generate boards if not already there
+    const players = Object.keys(snap.val()||{});
+    if(players.length<2){ alert("Waiting for both players to join!"); return; }
     db.ref(`rooms/${roomId}/boards`).once("value", bs=>{
       if(bs.exists()) return;
       const p1Board = shuffle([...Array(25).keys()].map(n=>n+1));
@@ -146,84 +96,74 @@ function startGame(){
   });
 }
 
+/* LISTEN ROOM */
 function listenRoom(){
-  db.ref("rooms/"+roomId).on("value", snap => {
+  db.ref("rooms/"+roomId).on("value", snap=>{
     const d = snap.val();
     if(!d) return;
-
     const players = Object.keys(d.players||{});
-    turnText.innerText = "Turn: " + (d.turn||"");
+    turnText.innerText = "Turn: "+(d.turn||"");
+    if(isOwner && players.length===2 && !d.started) startBtn.classList.remove("hidden");
+    else startBtn.classList.add("hidden");
 
-    if(isOwner && players.length===2 && !d.started)
-      startBtn.classList.remove("hidden");
-    else
-      startBtn.classList.add("hidden");
-
-    if(d.started && d.boards?.[playerId]){
-      board = d.boards[playerId];
-      if(!marked.length) marked = Array(25).fill(false);
-      renderBoard(d.marks||{}, d.turn);
+    if(d.started && d.boards){
+      boardMap = d.boards;
+      board = boardMap[playerId];
+      if(!marked.length) marked=Array(25).fill(false);
+      // listen marks for this player
+      db.ref(`rooms/${roomId}/marks/${playerId}`).once("value", snap=>renderBoard(snap.val()||{}, d.turn));
     }
   });
 }
 
-/* ---------- RENDER BOARD ---------- */
+/* RENDER BOARD */
 function renderBoard(marks, turn){
   boardDiv.innerHTML="";
   marked = Array(25).fill(false);
   Object.keys(marks||{}).forEach(i=>marked[i]=true);
-
   board.forEach((n,i)=>{
     const c=document.createElement("div");
     c.className="cell";
     if(marked[i]) c.classList.add("marked");
     c.innerText=n;
-    c.onclick=()=>clickCell(i, turn, marks);
+    c.onclick=()=>clickCell(i, turn);
     boardDiv.appendChild(c);
   });
-
   checkBingo();
 }
 
-/* ---------- CLICK ---------- */
-function clickCell(i, turn, marks){
-  if(turn!==playerId || marks?.[i]) return;
-  db.ref(`rooms/${roomId}/marks/${i}`).set(true);
+/* CLICK HANDLER */
+function clickCell(i, turn){
+  if(turn!==playerId || marked[i]) return;
+  const num = board[i];
+  // mark this number on all boards
+  Object.keys(boardMap).forEach(pid=>{
+    const idx = boardMap[pid].indexOf(num);
+    if(idx>=0) db.ref(`rooms/${roomId}/marks/${pid}/${idx}`).set(true);
+  });
+  // switch turn
   db.ref(`rooms/${roomId}/turn`).set(playerId==="P1"?"P2":"P1");
 }
 
-/* ---------- BINGO LOGIC ---------- */
+/* BINGO LOGIC */
 function checkBingo(){
   const checkLine = idxs => idxs.every(i=>marked[i]);
-
-  // Check rows
   for(let r=0;r<5;r++){
-    const line = "R"+r;
-    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(c=>r*5+c)))
-      completedLines.add(line);
+    const line="R"+r;
+    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(c=>r*5+c))) completedLines.add(line);
   }
-  // Check columns
   for(let c=0;c<5;c++){
-    const line = "C"+c;
-    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(r=>r*5+c)))
-      completedLines.add(line);
+    const line="C"+c;
+    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(r=>r*5+c))) completedLines.add(line);
   }
-
-  const letters = "BINGO";
+  const letters="BINGO";
   bingoText.innerText = letters.slice(0, completedLines.size);
-  if(completedLines.size>=5) bingoText.innerText = "🎉 BINGO! 🎉";
+  if(completedLines.size>=5) bingoText.innerText="🎉 BINGO! 🎉";
 }
 
-/* ---------- UTILS ---------- */
-function shuffle(a){
-  for(let i=a.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [a[i],a[j]]=[a[j],a[i]];
-  }
-  return a;
-}
-
-const boardDiv = document.getElementById("board");
+/* UTILS */
+function shuffle(a){for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a;}
+const boardDiv=document.getElementById("board");
 </script>
 </body>
 </html>
