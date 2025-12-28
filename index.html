@@ -6,93 +6,54 @@
 <title>Sumith’s Bingo</title>
 
 <style>
-:root {
-  --bg: #f7f4ff;
-  --card: #ffffff;
-  --primary: #7c6ae6;
-  --mark: #b9fbc0;
-  --line: #ffd6a5;
-}
-
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
-  background: var(--bg);
-  color: #333;
+  background: #f6f4ff;
 }
-
 header {
-  padding: 12px;
   text-align: center;
+  padding: 12px;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: bold;
 }
-
 .container {
   max-width: 420px;
   margin: auto;
   padding: 10px;
 }
-
 .card {
-  background: var(--card);
-  border-radius: 14px;
+  background: white;
   padding: 14px;
-  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.08);
 }
-
-button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  border: none;
-  border-radius: 10px;
-  background: var(--primary);
-  color: white;
-  font-size: 16px;
-}
-
-input {
+button, input {
   width: 100%;
   padding: 12px;
   margin-top: 10px;
   font-size: 16px;
 }
-
 .grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5,1fr);
   gap: 6px;
   margin-top: 12px;
 }
-
 .cell {
   aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f1ff;
+  background: #ecebff;
   border-radius: 8px;
   font-weight: 600;
   font-size: 18px;
-  cursor: pointer;
 }
-
-.cell.marked {
-  background: var(--mark);
-}
-
-.cell.line {
-  background: var(--line);
-}
-
-.hidden { display: none; }
-
-.status {
-  text-align: center;
-  margin-top: 10px;
-  font-weight: 600;
-}
+.cell.marked { background: #b8f2c2; }
+.cell.line { background: #ffd8a8; }
+.hidden { display:none; }
+.status { text-align:center; margin-top:8px; font-weight:600; }
 </style>
 </head>
 
@@ -101,22 +62,17 @@ input {
 
 <div class="container">
 
-<!-- LOBBY -->
 <div id="lobby" class="card">
   <button onclick="createRoom()">Create Room</button>
   <input id="roomInput" placeholder="Enter Room Code"/>
   <button onclick="joinRoom()">Join Room</button>
 </div>
 
-<!-- GAME -->
 <div id="game" class="card hidden">
-  <div class="status" id="roomCode"></div>
-  <div class="status" id="statusText"></div>
-
+  <div class="status" id="roomText"></div>
+  <div class="status" id="turnText"></div>
   <button id="startBtn" class="hidden" onclick="startGame()">Start Game</button>
-
   <div class="grid" id="board"></div>
-
   <div class="status" id="bingoText"></div>
 </div>
 
@@ -127,7 +83,6 @@ input {
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-/* 🔥 FIREBASE CONFIG 🔥 */
 firebase.initializeApp({
   apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
   authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
@@ -141,138 +96,125 @@ firebase.initializeApp({
 
 const db = firebase.database();
 
-/* STATE */
 let roomId, playerId, isOwner = false;
 let board = [];
 let marked = Array(25).fill(false);
+let completedLines = new Set();
 
-/* CREATE ROOM */
+/* ---------- LOBBY ---------- */
 function createRoom() {
-  roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
+  roomId = Math.random().toString(36).substring(2,7).toUpperCase();
   playerId = "P1";
   isOwner = true;
 
-  db.ref("rooms/" + roomId).set({
-    players: { P1: true },
-    turn: "P1",
-    started: false,
-    marks: {}
+  db.ref("rooms/"+roomId).set({
+    players: { P1:true },
+    started:false,
+    turn:"P1"
   });
 
   enterRoom();
 }
 
-/* JOIN ROOM */
 function joinRoom() {
-  roomId = document.getElementById("roomInput").value.trim().toUpperCase();
+  roomId = roomInput.value.trim().toUpperCase();
   if (!roomId) return;
-
   playerId = "P2";
-  db.ref("rooms/" + roomId + "/players/P2").set(true);
+  db.ref("rooms/"+roomId+"/players/P2").set(true);
   enterRoom();
 }
 
-/* ENTER ROOM */
 function enterRoom() {
-  document.getElementById("lobby").classList.add("hidden");
-  document.getElementById("game").classList.remove("hidden");
-  document.getElementById("roomCode").innerText = "Room: " + roomId;
-
+  lobby.classList.add("hidden");
+  game.classList.remove("hidden");
+  roomText.innerText = "Room: " + roomId;
   listenRoom();
 }
 
-/* START GAME */
+/* ---------- GAME ---------- */
 function startGame() {
-  db.ref("rooms/" + roomId + "/started").set(true);
+  const boardData = shuffle([...Array(25).keys()].map(n=>n+1));
+  db.ref(`rooms/${roomId}/boards/${playerId}`).set(boardData);
+  db.ref(`rooms/${roomId}/started`).set(true);
 }
 
-/* LISTEN */
 function listenRoom() {
-  db.ref("rooms/" + roomId).on("value", snap => {
-    const data = snap.val();
-    if (!data) return;
-
-    const players = Object.keys(data.players || {});
-    document.getElementById("statusText").innerText =
-      players.length < 2 ? "Waiting for player…" : "Both players joined";
-
-    if (isOwner && players.length === 2 && !data.started)
-      document.getElementById("startBtn").classList.remove("hidden");
-
-    if (data.started) initBoard();
-
-    if (data.marks) applyMarks(data.marks, data.turn);
-  });
-}
-
-/* INIT BOARD */
-function initBoard() {
-  document.getElementById("startBtn").classList.add("hidden");
-  board = shuffle([...Array(25).keys()].map(n => n + 1));
-  renderBoard();
-}
-
-/* RENDER */
-function renderBoard() {
-  const g = document.getElementById("board");
-  g.innerHTML = "";
-  board.forEach((n, i) => {
-    const d = document.createElement("div");
-    d.className = "cell";
-    d.innerText = n;
-    d.onclick = () => clickCell(i);
-    g.appendChild(d);
-  });
-}
-
-/* CLICK */
-function clickCell(i) {
-  db.ref("rooms/" + roomId).once("value", snap => {
+  db.ref("rooms/"+roomId).on("value", snap => {
     const d = snap.val();
-    if (!d.started || d.turn !== playerId || d.marks?.[i]) return;
+    if (!d) return;
 
-    db.ref("rooms/" + roomId + "/marks/" + i).set(playerId);
-    db.ref("rooms/" + roomId + "/turn").set(playerId === "P1" ? "P2" : "P1");
+    const players = Object.keys(d.players||{});
+    turnText.innerText = "Turn: " + d.turn;
+
+    if (isOwner && players.length===2 && !d.started)
+      startBtn.classList.remove("hidden");
+
+    if (d.started && d.boards?.[playerId]) {
+      board = d.boards[playerId];
+      renderBoard(d.marks||{}, d.turn);
+    }
   });
 }
 
-/* APPLY MARKS */
-function applyMarks(marks) {
+function renderBoard(marks, turn) {
+  boardDiv.innerHTML="";
   marked.fill(false);
-  Object.keys(marks).forEach(i => marked[i] = true);
 
-  document.querySelectorAll(".cell").forEach((c, i) => {
-    c.classList.toggle("marked", marked[i]);
+  Object.keys(marks||{}).forEach(i=>marked[i]=true);
+
+  board.forEach((n,i)=>{
+    const c=document.createElement("div");
+    c.className="cell";
+    if(marked[i]) c.classList.add("marked");
+    c.innerText=n;
+    c.onclick=()=>clickCell(i,turn,marks);
+    boardDiv.appendChild(c);
   });
 
   checkBingo();
 }
 
-/* BINGO LOGIC */
-function checkBingo() {
-  let lines = 0;
-
-  for (let r = 0; r < 5; r++)
-    if ([0,1,2,3,4].every(c => marked[r*5+c])) lines++;
-
-  for (let c = 0; c < 5; c++)
-    if ([0,1,2,3,4].every(r => marked[r*5+c])) lines++;
-
-  document.getElementById("bingoText").innerText =
-    "BINGO: " + "BINGO".slice(0, lines);
-
-  if (lines >= 5)
-    document.getElementById("bingoText").innerText = "🎉 BINGO! 🎉";
+function clickCell(i,turn,marks) {
+  if (turn!==playerId || marks?.[i]) return;
+  db.ref(`rooms/${roomId}/marks/${i}`).set(true);
+  db.ref(`rooms/${roomId}/turn`).set(playerId==="P1"?"P2":"P1");
 }
 
-/* UTILS */
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+/* ---------- BINGO LOGIC ---------- */
+function checkBingo() {
+  let count=0;
+
+  const checkLine = idxs => idxs.every(i=>marked[i]);
+
+  for(let r=0;r<5;r++){
+    const line=`R${r}`;
+    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(c=>r*5+c))){
+      completedLines.add(line); count++;
+    }
+  }
+
+  for(let c=0;c<5;c++){
+    const line=`C${c}`;
+    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(r=>r*5+c))){
+      completedLines.add(line); count++;
+    }
+  }
+
+  const letters="BINGO";
+  bingoText.innerText=letters.slice(0,completedLines.size);
+  if(completedLines.size>=5) bingoText.innerText="🎉 BINGO! 🎉";
+}
+
+/* ---------- UTILS ---------- */
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
   }
   return a;
 }
+
+const boardDiv=document.getElementById("board");
 </script>
 </body>
 </html>
