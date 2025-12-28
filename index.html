@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,11 +44,7 @@ body.soft{
   --text:#333;
 }
 .app{width:100%;max-width:420px;padding:16px;}
-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
+header{display:flex;justify-content:space-between;align-items:center;}
 h1{margin:0;color:var(--text);}
 select{border-radius:10px;padding:6px;}
 
@@ -64,7 +61,6 @@ button{
   background:var(--accent);
   color:#fff;
   font-size:16px;
-  cursor:pointer;
 }
 input{
   padding:10px;
@@ -90,6 +86,7 @@ input{
 }
 .cell.marked{background:var(--marked);}
 .cell.completed{background:var(--complete);}
+
 .bingo{
   display:flex;
   justify-content:center;
@@ -110,7 +107,7 @@ input{
 }
 #bingoMessage{
   text-align:center;
-  font-size:24px;
+  font-size:26px;
   display:none;
 }
 .hidden{display:none;}
@@ -159,7 +156,7 @@ input{
 </div>
 
 <script>
-/* 🔥 Firebase */
+/* 🔥 FIREBASE CONFIG */
 firebase.initializeApp({
   apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
   authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
@@ -170,237 +167,157 @@ firebase.initializeApp({
   appId: "1:157740745674:web:a4bdabb3bc8a05d024c533",
   measurementId: "G-88SZ629W0B"
 });
+const db=firebase.database();
 
-const db = firebase.database();
+/* GAME STATE */
+const SIZE=5;
+let roomCode,playerNum,roomRef;
+let cells=[],completed=new Set(),bingo=false;
 
-/********************
- 🎮 GAME STATE
-********************/
-const SIZE = 5;
-let roomCode = null;
-let playerNum = null; // 1 or 2
-let roomRef = null;
-let roomListener = null;
+/* THEME */
+theme.onchange=e=>document.body.className=e.target.value;
 
-let cells = [];
-let completed = new Set();
-let bingo = false;
-
-/********************
- 🎨 THEME SWITCH
-********************/
-document.getElementById("theme").onchange = e => {
-  document.body.className = e.target.value;
-};
-
-/********************
- 🏠 CREATE ROOM
-********************/
+/* CREATE ROOM */
 function createRoom(){
-  roomCode = Math.random().toString(36).substring(2,7).toUpperCase();
-  playerNum = 1;
-
-  roomRef = db.ref("rooms/" + roomCode);
+  roomCode=Math.random().toString(36).substring(2,7).toUpperCase();
+  playerNum=1;
+  roomRef=db.ref("rooms/"+roomCode);
   roomRef.set({
-    players: 1,
-    started: false,
-    currentPlayer: 1,
-    calledNumbers: [],
-    boards: {
-      p1: generateBoard()
-    }
+    players:1,
+    started:false,
+    currentPlayer:1,
+    calledNumbers:[],
+    boards:{p1:genBoard()}
   });
-
   listenLobby();
 }
 
-/********************
- 🚪 JOIN ROOM
-********************/
+/* JOIN ROOM */
 function joinRoom(){
-  roomCode = document.getElementById("roomInput").value.trim().toUpperCase();
-  if(!roomCode) return alert("Enter room code");
-
-  roomRef = db.ref("rooms/" + roomCode);
-  roomRef.once("value", snap => {
-    if(!snap.exists()) return alert("Room not found");
-
-    const data = snap.val();
-    if(data.players >= 2) return alert("Room full");
-
-    playerNum = 2;
+  roomCode=roomInput.value.trim().toUpperCase();
+  roomRef=db.ref("rooms/"+roomCode);
+  roomRef.once("value",s=>{
+    if(!s.exists()) return alert("Room not found");
+    const d=s.val();
+    if(d.players>=2) return alert("Room full");
+    playerNum=2;
     roomRef.update({
-      players: 2,
-      boards: {
-        ...data.boards,
-        p2: generateBoard()
-      }
+      players:2,
+      boards:{...d.boards,p2:genBoard()}
     });
-
     listenLobby();
   });
 }
 
-/********************
- 👂 LOBBY LISTENER
-********************/
+/* LOBBY LISTENER */
 function listenLobby(){
-  if(roomListener) roomRef.off("value", roomListener);
+  roomRef.on("value",s=>{
+    const d=s.val();
+    lobbyStatus.innerText=`Room: ${roomCode} | Players: ${d.players}/2`;
 
-  roomListener = roomRef.on("value", snap => {
-    const data = snap.val();
-    if(!data) return;
-
-    const status = document.getElementById("lobbyStatus");
-    const startBtn = document.getElementById("startBtn");
-
-    status.innerText = `Room: ${roomCode} | Players: ${data.players}/2`;
-
-    // Start button ONLY for owner
-    if(data.players === 2 && playerNum === 1 && !data.started){
+    if(d.players===2 && playerNum===1 && !d.started){
       startBtn.classList.remove("hidden");
     } else {
       startBtn.classList.add("hidden");
     }
 
-    if(data.players === 2 && playerNum === 2 && !data.started){
-      status.innerText = "Waiting for host to start the game…";
+    if(d.players===2 && playerNum===2 && !d.started){
+      lobbyStatus.innerText="Waiting for host to start…";
     }
 
-    if(data.started){
-      enterGame(data);
-    }
+    if(d.started) enterGame(d);
   });
 }
 
-/********************
- ▶️ START GAME (OWNER ONLY)
-********************/
+/* START GAME */
 function startGame(){
-  if(playerNum !== 1) return;
-  roomRef.update({ started: true });
+  if(playerNum!==1) return;
+  roomRef.update({started:true});
 }
 
-/********************
- 🎯 ENTER GAME
-********************/
-function enterGame(data){
-  document.getElementById("lobby").classList.add("hidden");
-  document.getElementById("game").classList.remove("hidden");
-
-  const boardKey = playerNum === 1 ? "p1" : "p2";
-  renderBoard(data.boards[boardKey]);
-
-  const grid = document.getElementById("grid");
-  const status = document.getElementById("lobbyStatus");
-
-  // ✅ IMPORTANT FIX
-  if (data.currentPlayer === playerNum) {
-    grid.style.pointerEvents = "auto";
-    status.innerText = "Your turn";
-  } else {
-    grid.style.pointerEvents = "none";
-    status.innerText = "Opponent's turn";
-  }
-
+/* ENTER GAME */
+function enterGame(d){
+  lobby.classList.add("hidden");
+  game.classList.remove("hidden");
+  const board=d.boards[playerNum===1?"p1":"p2"];
+  renderBoard(board);
   listenGame();
 }
 
-/********************
- 🧩 BOARD GENERATION
-********************/
-function generateBoard(){
-  return [...Array(25).keys()].map(i => i + 1).sort(() => Math.random() - 0.5);
+/* BOARD */
+function genBoard(){
+  return [...Array(25).keys()].map(i=>i+1).sort(()=>Math.random()-0.5);
 }
-
-function renderBoard(numbers){
-  const grid = document.getElementById("grid");
-  grid.innerHTML = "";
-  cells = [];
+function renderBoard(nums){
+  grid.innerHTML='';
+  cells=[];
   completed.clear();
-  bingo = false;
-
-  numbers.forEach(num => {
-    const cell = document.createElement("div");
-    cell.className = "cell";
-    cell.textContent = num;
-    cell.onclick = () => handleCellClick(num);
-    cells.push(cell);
-    grid.appendChild(cell);
+  bingo=false;
+  nums.forEach(n=>{
+    const c=document.createElement("div");
+    c.className="cell";
+    c.textContent=n;
+    c.onclick=()=>cellClick(n);
+    cells.push(c);
+    grid.appendChild(c);
   });
 }
 
-/********************
- 🖱️ CELL CLICK
-********************/
-function handleCellClick(number){
-  roomRef.once("value", snap => {
-    const data = snap.val();
-    if(!data || data.currentPlayer !== playerNum) return;
-    if(data.calledNumbers.includes(number)) return;
+/* CLICK HANDLER (TURN SAFE) */
+function cellClick(n){
+  roomRef.once("value",s=>{
+    const d=s.val();
+    if(d.currentPlayer!==playerNum){
+      alert("Not your turn");
+      return;
+    }
+    if(d.calledNumbers.includes(n)) return;
 
     roomRef.update({
-      calledNumbers: [...data.calledNumbers, number],
-      currentPlayer: playerNum === 1 ? 2 : 1
+      calledNumbers:[...d.calledNumbers,n],
+      currentPlayer:playerNum===1?2:1
     });
   });
 }
 
-/********************
- 👂 GAME LISTENER
-********************/
+/* GAME LISTENER */
 function listenGame(){
-  roomRef.on("value", snap => {
-    const data = snap.val();
-    if(!data) return;
-
-    updateBoard(data.calledNumbers);
-
-    const grid = document.getElementById("grid");
-    const status = document.getElementById("lobbyStatus");
-
-    if(data.currentPlayer === playerNum){
-      grid.style.pointerEvents = "auto";
-      status.innerText = "Your turn";
-    } else {
-      grid.style.pointerEvents = "none";
-      status.innerText = "Opponent's turn";
-    }
+  roomRef.on("value",s=>{
+    const d=s.val();
+    updateBoard(d.calledNumbers);
+    lobbyStatus.innerText=
+      d.currentPlayer===playerNum?"Your turn":"Opponent’s turn";
   });
 }
 
-/********************
- 🏆 BINGO LOGIC (UNCHANGED)
-********************/
+/* BINGO LOGIC (OFFLINE GOLD STANDARD) */
 function updateBoard(called){
   completed.clear();
 
-  cells.forEach(cell => {
-    cell.classList.remove("marked","completed");
-    if(called.includes(Number(cell.textContent))){
-      cell.classList.add("marked");
-    }
+  cells.forEach(c=>{
+    c.classList.remove("marked","completed");
+    if(called.includes(+c.textContent)) c.classList.add("marked");
   });
 
-  const lines = [];
+  const lines=[];
   for(let r=0;r<5;r++) lines.push([...Array(5)].map((_,c)=>r*5+c));
   for(let c=0;c<5;c++) lines.push([...Array(5)].map((_,r)=>r*5+c));
 
-  lines.forEach((line,i)=>{
-    if(line.every(idx => cells[idx].classList.contains("marked"))){
-      line.forEach(idx => cells[idx].classList.add("completed"));
+  lines.forEach((l,i)=>{
+    if(l.every(x=>cells[x].classList.contains("marked"))){
+      l.forEach(x=>cells[x].classList.add("completed"));
       completed.add(i);
     }
   });
 
   ["b","i","n","g","o"].forEach((id,i)=>{
     document.getElementById(id)
-      .classList.toggle("active", completed.size > i);
+      .classList.toggle("active",completed.size>i);
   });
 
-  if(completed.size >= 5 && !bingo){
-    bingo = true;
-    document.getElementById("bingoMessage").style.display = "block";
+  if(completed.size>=5 && !bingo){
+    bingo=true;
+    bingoMessage.style.display="block";
   }
 }
 </script>
