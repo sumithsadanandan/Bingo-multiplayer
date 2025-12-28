@@ -49,6 +49,7 @@ button, input {
   border-radius: 8px;
   font-weight: 600;
   font-size: 18px;
+  cursor: pointer;
 }
 .cell.marked { background: #b8f2c2; }
 .cell.line { background: #ffd8a8; }
@@ -84,7 +85,7 @@ button, input {
 
 <script>
 firebase.initializeApp({
-  apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
+   apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
   authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
   databaseURL: "https://bingo-multiplayer-315fb-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "bingo-multiplayer-315fb",
@@ -96,13 +97,11 @@ firebase.initializeApp({
 
 const db = firebase.database();
 
-let roomId, playerId, isOwner = false;
-let board = [];
-let marked = Array(25).fill(false);
-let completedLines = new Set();
+let roomId, playerId, isOwner=false;
+let board=[], marked=[], completedLines = new Set();
 
 /* ---------- LOBBY ---------- */
-function createRoom() {
+function createRoom(){
   roomId = Math.random().toString(36).substring(2,7).toUpperCase();
   playerId = "P1";
   isOwner = true;
@@ -116,15 +115,15 @@ function createRoom() {
   enterRoom();
 }
 
-function joinRoom() {
+function joinRoom(){
   roomId = roomInput.value.trim().toUpperCase();
-  if (!roomId) return;
+  if(!roomId) return;
   playerId = "P2";
   db.ref("rooms/"+roomId+"/players/P2").set(true);
   enterRoom();
 }
 
-function enterRoom() {
+function enterRoom(){
   lobby.classList.add("hidden");
   game.classList.remove("hidden");
   roomText.innerText = "Room: " + roomId;
@@ -132,34 +131,37 @@ function enterRoom() {
 }
 
 /* ---------- GAME ---------- */
-function startGame() {
-  const boardData = shuffle([...Array(25).keys()].map(n=>n+1));
-  db.ref(`rooms/${roomId}/boards/${playerId}`).set(boardData);
+function startGame(){
+  const p1Board = shuffle([...Array(25).keys()].map(n=>n+1));
+  const p2Board = shuffle([...Array(25).keys()].map(n=>n+1));
+  db.ref(`rooms/${roomId}/boards`).set({ P1: p1Board, P2: p2Board });
   db.ref(`rooms/${roomId}/started`).set(true);
 }
 
-function listenRoom() {
+function listenRoom(){
   db.ref("rooms/"+roomId).on("value", snap => {
     const d = snap.val();
-    if (!d) return;
+    if(!d) return;
 
     const players = Object.keys(d.players||{});
     turnText.innerText = "Turn: " + d.turn;
 
-    if (isOwner && players.length===2 && !d.started)
+    if(isOwner && players.length===2 && !d.started)
       startBtn.classList.remove("hidden");
+    else
+      startBtn.classList.add("hidden");
 
-    if (d.started && d.boards?.[playerId]) {
+    if(d.started && d.boards?.[playerId]){
       board = d.boards[playerId];
+      marked = Array(25).fill(false);
       renderBoard(d.marks||{}, d.turn);
     }
   });
 }
 
-function renderBoard(marks, turn) {
+/* ---------- RENDER BOARD ---------- */
+function renderBoard(marks, turn){
   boardDiv.innerHTML="";
-  marked.fill(false);
-
   Object.keys(marks||{}).forEach(i=>marked[i]=true);
 
   board.forEach((n,i)=>{
@@ -167,42 +169,40 @@ function renderBoard(marks, turn) {
     c.className="cell";
     if(marked[i]) c.classList.add("marked");
     c.innerText=n;
-    c.onclick=()=>clickCell(i,turn,marks);
+    c.onclick=()=>clickCell(i, turn, marks);
     boardDiv.appendChild(c);
   });
 
   checkBingo();
 }
 
-function clickCell(i,turn,marks) {
-  if (turn!==playerId || marks?.[i]) return;
+/* ---------- CLICK ---------- */
+function clickCell(i, turn, marks){
+  if(turn!==playerId || marks?.[i]) return;
   db.ref(`rooms/${roomId}/marks/${i}`).set(true);
   db.ref(`rooms/${roomId}/turn`).set(playerId==="P1"?"P2":"P1");
 }
 
 /* ---------- BINGO LOGIC ---------- */
-function checkBingo() {
-  let count=0;
-
+function checkBingo(){
   const checkLine = idxs => idxs.every(i=>marked[i]);
 
+  // Check rows
   for(let r=0;r<5;r++){
-    const line=`R${r}`;
-    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(c=>r*5+c))){
-      completedLines.add(line); count++;
-    }
+    const line = "R"+r;
+    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(c=>r*5+c)))
+      completedLines.add(line);
   }
-
+  // Check columns
   for(let c=0;c<5;c++){
-    const line=`C${c}`;
-    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(r=>r*5+c))){
-      completedLines.add(line); count++;
-    }
+    const line = "C"+c;
+    if(!completedLines.has(line) && checkLine([0,1,2,3,4].map(r=>r*5+c)))
+      completedLines.add(line);
   }
 
-  const letters="BINGO";
-  bingoText.innerText=letters.slice(0,completedLines.size);
-  if(completedLines.size>=5) bingoText.innerText="🎉 BINGO! 🎉";
+  const letters = "BINGO";
+  bingoText.innerText = letters.slice(0, completedLines.size);
+  if(completedLines.size>=5) bingoText.innerText = "🎉 BINGO! 🎉";
 }
 
 /* ---------- UTILS ---------- */
@@ -214,7 +214,7 @@ function shuffle(a){
   return a;
 }
 
-const boardDiv=document.getElementById("board");
+const boardDiv = document.getElementById("board");
 </script>
 </body>
 </html>
