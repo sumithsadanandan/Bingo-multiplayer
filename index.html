@@ -1,52 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sumith’s Bingo — Fixed</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sumith’s Bingo</title>
 <style>
-  body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background:#f6f4ff; color:#222;}
-  header{padding:12px;text-align:center;font-weight:700;font-size:20px;}
-  .wrap{max-width:420px;margin:16px auto;padding:10px;}
-  .card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 8px 22px rgba(0,0,0,0.08);}
-  button,input{width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;font-size:15px;margin-top:8px}
-  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
-  .cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#eae9ff;font-weight:700;cursor:pointer}
-  .cell.marked{background:#b8f2c2}
-  .cell.completed{background:#ffd8a8}
-  .status{text-align:center;margin-top:8px;font-weight:600}
-  .hidden{display:none}
+body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background:#f6f4ff; color:#222;}
+header{padding:12px;text-align:center;font-weight:700;font-size:20px;}
+.wrap{max-width:420px;margin:16px auto;padding:10px;}
+.card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 8px 22px rgba(0,0,0,0.08);}
+button,input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;font-size:15px;margin-top:8px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+.cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#eae9ff;font-weight:700;cursor:pointer;user-select:none}
+.cell.marked{background:#b8f2c2}
+.cell.completed{background:#ffd8a8}
+.status{text-align:center;margin-top:8px;font-weight:600}
+.hidden{display:none}
 </style>
 </head>
-<body>
+<body class="pastel">
 <header>🎉 Sumith’s Bingo</header>
 <div class="wrap">
-
-  <!-- LOBBY CARD -->
   <div id="lobby" class="card">
     <button id="createBtn">Create Room</button>
-    <input id="roomInput" placeholder="Enter room code (or leave blank after create)" />
+    <input id="roomInput" placeholder="Enter room code to join">
     <button id="joinBtn">Join Room</button>
+    <select id="themeSelect">
+      <option value="pastel">🌸 Pastel</option>
+      <option value="neon">⚡ Neon</option>
+      <option value="soft">🧊 Soft</option>
+    </select>
     <p id="lobbyStatus" class="status"></p>
     <button id="startBtn" class="hidden">Start Game (owner only)</button>
   </div>
 
-  <!-- GAME CARD -->
   <div id="game" class="card hidden">
     <div id="roomLabel" class="status"></div>
     <div id="turnLabel" class="status"></div>
     <div id="board" class="grid"></div>
     <div id="bingoLabel" class="status"></div>
   </div>
-
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
 <script>
-/* ====== CONFIG: replace with your Firebase project settings ====== */
+/* ====== CONFIG: Replace with your Firebase project settings ====== */
 firebase.initializeApp({
   apiKey: "AIzaSyCKZ-ktAV8MPyZbjwkuzszTUEzHXvoKOGA",
   authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
@@ -57,271 +56,157 @@ firebase.initializeApp({
   appId: "1:157740745674:web:a4bdabb3bc8a05d024c533",
   measurementId: "G-88SZ629W0B"
 });
-/* ================================================================= */
-
 const db = firebase.database();
 
+/* ===== Variables ===== */
 let roomId = null;
 let playerId = null; // "P1" or "P2"
 let isOwner = false;
-
-let board = [];            // this client's board (array length 25)
-let boardMap = {};         // map { P1: [...], P2: [...] } as stored in Firebase
-let marked = [];           // boolean array length 25 for this client's marks
-let completedLines = new Set();
-
-let roomListener = null;
-let marksListener = null;
+let board = [], boardMap = {}, marked = [], completedLines = new Set();
 
 /* UI refs */
-const createBtn = document.getElementById('createBtn');
-const joinBtn = document.getElementById('joinBtn');
-const startBtn = document.getElementById('startBtn');
-const roomInput = document.getElementById('roomInput');
-const lobbyStatus = document.getElementById('lobbyStatus');
-const lobbyCard = document.getElementById('lobby');
-const gameCard = document.getElementById('game');
-const roomLabel = document.getElementById('roomLabel');
-const turnLabel = document.getElementById('turnLabel');
-const boardEl = document.getElementById('board');
-const bingoLabel = document.getElementById('bingoLabel');
+const createBtn=document.getElementById('createBtn');
+const joinBtn=document.getElementById('joinBtn');
+const startBtn=document.getElementById('startBtn');
+const roomInput=document.getElementById('roomInput');
+const lobbyStatus=document.getElementById('lobbyStatus');
+const lobbyCard=document.getElementById('lobby');
+const gameCard=document.getElementById('game');
+const roomLabel=document.getElementById('roomLabel');
+const turnLabel=document.getElementById('turnLabel');
+const boardEl=document.getElementById('board');
+const bingoLabel=document.getElementById('bingoLabel');
+const themeSelect=document.getElementById('themeSelect');
 
-/* helper - shuffle */
-function shuffle(arr){
-  for(let i=arr.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
-  return arr;
-}
+/* ===== Theme change ===== */
+themeSelect.onchange=e=>document.body.className=e.target.value;
+
+/* ===== Helper ===== */
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr;}
 
 /* ===== Lobby actions ===== */
-createBtn.addEventListener('click', async () => {
-  roomId = Math.random().toString(36).substring(2,7).toUpperCase();
-  playerId = "P1";
-  isOwner = true;
-  // initial minimal room
-  await db.ref(`rooms/${roomId}`).set({
-    players: { P1: true },
-    started: false,
-    turn: "P1"
-  });
+createBtn.onclick=async()=>{
+  roomId=Math.random().toString(36).substring(2,7).toUpperCase();
+  playerId="P1"; isOwner=true;
+  await db.ref(`rooms/${roomId}`).set({players:{P1:true},started:false,turn:"P1"});
   enterRoomUI();
-});
+};
 
-joinBtn.addEventListener('click', async () => {
-  const val = (roomInput.value || "").trim().toUpperCase();
-  if(!val) { alert("Enter room code to join"); return; }
-  roomId = val;
-  playerId = "P2";
-  isOwner = false;
+joinBtn.onclick=async()=>{
+  const val=(roomInput.value||"").trim().toUpperCase();
+  if(!val){alert("Enter room code"); return;}
+  roomId=val; playerId="P2"; isOwner=false;
   await db.ref(`rooms/${roomId}/players/P2`).set(true);
   enterRoomUI();
-});
+};
 
-/* show lobby->game UI and start listening */
+/* Enter game UI */
 function enterRoomUI(){
-  lobbyCard.classList.add('hidden');
-  gameCard.classList.remove('hidden');
-  roomLabel.innerText = `Room: ${roomId}`;
-  lobbyStatus.innerText = "Connected. Waiting...";
+  lobbyCard.classList.add('hidden'); gameCard.classList.remove('hidden');
+  roomLabel.innerText=`Room: ${roomId}`;
+  lobbyStatus.innerText="Connected. Waiting for players...";
   attachRoomListener();
 }
 
-/* ===== Start Game (owner only) ===== */
-startBtn.addEventListener('click', async () => {
-  // ensure both players present before generating boards
-  const snap = await db.ref(`rooms/${roomId}/players`).once('value');
-  const playersObj = snap.val() || {};
-  const playerKeys = Object.keys(playersObj);
-  if(playerKeys.length < 2){
-    alert("Need two players to start");
-    return;
-  }
-
-  // only create boards if they don't already exist
-  const boardsSnap = await db.ref(`rooms/${roomId}/boards`).once('value');
-  if(boardsSnap.exists()){
-    // boards already exist -> just set started true
+/* Start game (owner only) */
+startBtn.onclick=async()=>{
+  const snap=await db.ref(`rooms/${roomId}/players`).once('value');
+  const playersObj=snap.val()||{};
+  if(Object.keys(playersObj).length<2){alert("Need 2 players"); return;}
+  const boardsSnap=await db.ref(`rooms/${roomId}/boards`).once('value');
+  if(!boardsSnap.exists()){
+    const p1=shuffle([...Array(25).keys()].map(n=>n+1));
+    const p2=shuffle([...Array(25).keys()].map(n=>n+1));
+    const updates={};
+    updates[`rooms/${roomId}/boards/P1`]=p1;
+    updates[`rooms/${roomId}/boards/P2`]=p2;
+    updates[`rooms/${roomId}/marks`]={};
+    updates[`rooms/${roomId}/started`]=true;
+    updates[`rooms/${roomId}/turn`]="P1";
+    await db.ref().update(updates);
+  } else {
     await db.ref(`rooms/${roomId}/started`).set(true);
-    return;
   }
+};
 
-  // generate boards for P1 and P2 and clear marks
-  const p1 = shuffle([...Array(25).keys()].map(n=>n+1));
-  const p2 = shuffle([...Array(25).keys()].map(n=>n+1));
-  const updates = {};
-  updates[`rooms/${roomId}/boards/P1`] = p1;
-  updates[`rooms/${roomId}/boards/P2`] = p2;
-  updates[`rooms/${roomId}/marks`] = {};        // clear marks
-  updates[`rooms/${roomId}/started`] = true;
-  updates[`rooms/${roomId}/turn`] = "P1";
-  await db.ref().update(updates);
-});
-
-/* ===== Room listener (single persistent) ===== */
+/* ===== Room listener ===== */
 function attachRoomListener(){
-  if(roomListener) return; // already attached
-  const roomRef = db.ref(`rooms/${roomId}`);
-  roomListener = roomRef.on('value', snap => {
-    const data = snap.val();
+  const roomRef=db.ref(`rooms/${roomId}`);
+  roomRef.on('value',snap=>{
+    const data=snap.val();
     if(!data) return;
-
-    // show player count and owner-only start button
-    const players = Object.keys(data.players || {});
-    lobbyStatus.innerText = `Players: ${players.length}/2`;
-
-    if(isOwner && players.length === 2 && !data.started){
-      startBtn.classList.remove('hidden');
-    } else {
-      startBtn.classList.add('hidden');
-    }
-
-    // update turn label
-    turnLabel.innerText = `Turn: ${data.turn || ''}`;
-
-    // load boardMap if available
-    if(data.boards) {
-      boardMap = data.boards;
-      // if boards exist and this player's board exists:
-      if(data.started && boardMap[playerId]) {
-        board = boardMap[playerId];
-        // ensure marked array exists
-        marked = Array(25).fill(false);
+    const players=Object.keys(data.players||{});
+    lobbyStatus.innerText=`Players: ${players.length}/2`;
+    if(isOwner && players.length===2 && !data.started) startBtn.classList.remove('hidden'); 
+    else startBtn.classList.add('hidden');
+    turnLabel.innerText=`Turn: ${data.turn||''}`;
+    if(data.boards && data.started){
+      boardMap=data.boards;
+      if(boardMap[playerId]){
+        board=boardMap[playerId];
+        marked=Array(25).fill(false);
         completedLines.clear();
-        // attach marks listener for this player's marks path
         attachMarksListener();
       }
     }
   });
 }
 
-/* ===== marks listener for THIS PLAYER (persistent) ===== */
+/* ===== Marks listener ===== */
 function attachMarksListener(){
-  // detach existing marks listener if any
-  if(marksListener) {
-    db.ref(`rooms/${roomId}/marks/${playerId}`).off('value', marksListener);
-    marksListener = null;
-  }
-  const marksRef = db.ref(`rooms/${roomId}/marks/${playerId}`);
-  marksListener = marksRef.on('value', snap => {
-    const marksObj = snap.val() || {};
-    // update marked array
-    marked = Array(25).fill(false);
-    Object.keys(marksObj).forEach(k => { marked[Number(k)] = true; });
+  const marksRef=db.ref(`rooms/${roomId}/marks/${playerId}`);
+  marksRef.on('value',snap=>{
+    const marksObj=snap.val()||{};
+    marked=Array(25).fill(false);
+    Object.keys(marksObj).forEach(k=>marked[Number(k)]=true);
     renderBoard();
   });
 }
 
-/* ===== render board (rebuild DOM each time - simple & reliable) ===== */
+/* ===== Render board ===== */
 function renderBoard(){
-  // build grid only when board array exists
-  boardEl = boardEl || document.getElementById('board');
-  boardEl.innerHTML = '';
+  boardEl.innerHTML='';
   for(let i=0;i<25;i++){
-    const n = board[i];
-    const cell = document.createElement('div');
-    cell.className = 'cell' + (marked[i] ? ' marked' : '');
-    cell.innerText = n;
-    // click handler uses latest room state when clicked
-    cell.addEventListener('click', ()=> onCellClick(i));
+    const n=board[i];
+    const cell=document.createElement('div');
+    cell.className='cell'+(marked[i]?' marked':'');
+    cell.innerText=n;
+    cell.onclick=()=>onCellClick(i);
     boardEl.appendChild(cell);
   }
   updateBingoLabel();
 }
 
-/* ===== onCellClick: mark number across boards, switch turn ===== */
-async function onCellClick(indexClicked){
-  // guard: need board, roomId, playerId
-  if(!board || !roomId || !playerId) return;
+/* ===== Cell click ===== */
+async function onCellClick(idx){
+  const turnSnap=await db.ref(`rooms/${roomId}/turn`).once('value');
+  if(turnSnap.val()!==playerId) return; // not your turn
+  if(marked[idx]) return;
 
-  // fetch latest room turn atomically to avoid stale state
-  const turnSnap = await db.ref(`rooms/${roomId}/turn`).once('value');
-  const currentTurn = turnSnap.val();
-  if(currentTurn !== playerId) {
-    // not your turn
-    // (avoid alert spam on mobile; set subtle status)
-    lobbyStatus.innerText = `Not your turn`;
-    setTimeout(()=> {
-      // restore turn label after a moment (best-effort)
-      db.ref(`rooms/${roomId}/once`).once('value').then(()=>{});
-    }, 700);
-    return;
-  }
-
-  // if already marked, ignore
-  if(marked[indexClicked]) return;
-
-  const numberClicked = board[indexClicked];
-
-  // Build atomic updates: mark matching number index on each player's board
-  const updates = {};
-  // marks under rooms/<roomId>/marks/<playerId>/<index> = true
-  // We need to mark the number on every player's board wherever it appears
-  // We'll read the boards map once
-  const boardsSnap = await db.ref(`rooms/${roomId}/boards`).once('value');
-  const boardsObj = boardsSnap.val() || {};
-  Object.keys(boardsObj).forEach(pid => {
-    const idx = (boardsObj[pid] || []).indexOf(numberClicked);
-    if(idx >= 0) {
-      updates[`rooms/${roomId}/marks/${pid}/${idx}`] = true;
-    }
+  const numberClicked=board[idx];
+  const updates={};
+  const boardsSnap=await db.ref(`rooms/${roomId}/boards`).once('value');
+  const boardsObj=boardsSnap.val()||{};
+  Object.keys(boardsObj).forEach(pid=>{
+    const index=boardsObj[pid].indexOf(numberClicked);
+    if(index>=0) updates[`rooms/${roomId}/marks/${pid}/${index}`]=true;
   });
-
-  // also switch turn
-  updates[`rooms/${roomId}/turn`] = (playerId === "P1" ? "P2" : "P1");
-
-  // apply updates atomically
+  updates[`rooms/${roomId}/turn`]=playerId==="P1"?"P2":"P1";
   await db.ref().update(updates);
-  // UI will update via marks listener
 }
 
-/* ===== bingo label update (calculate lines from marked[]) ===== */
+/* ===== Bingo logic ===== */
 function updateBingoLabel(){
-  // recompute completedLines fresh to avoid double-counting across games
-  // but keep already completed lines across the same game by tracking completedLines set
-  // We'll recompute current completed and add to set
-  const letters = "BINGO";
-  let currentCompleted = new Set();
-
+  const letters="BINGO";
+  let currentCompleted=new Set();
   // rows
-  for(let r=0;r<5;r++){
-    const idxs = [0,1,2,3,4].map(c => r*5 + c);
-    if(idxs.every(i => marked[i])) currentCompleted.add('R'+r);
-  }
+  for(let r=0;r<5;r++){const idxs=[0,1,2,3,4].map(c=>r*5+c); if(idxs.every(i=>marked[i])) currentCompleted.add('R'+r);}
   // columns
-  for(let c=0;c<5;c++){
-    const idxs = [0,1,2,3,4].map(r => r*5 + c);
-    if(idxs.every(i => marked[i])) currentCompleted.add('C'+c);
-  }
-
-  // update completedLines to include any newly completed lines
-  currentCompleted.forEach(x => completedLines.add(x));
-
-  // show letters equal to count of completedLines
-  const count = completedLines.size;
-  if(count >= 5){
-    bingoLabel.innerText = "🎉 BINGO! 🎉";
-  } else {
-    bingoLabel.innerText = letters.slice(0, count);
-  }
+  for(let c=0;c<5;c++){const idxs=[0,1,2,3,4].map(r=>r*5+c); if(idxs.every(i=>marked[i])) currentCompleted.add('C'+c);}
+  currentCompleted.forEach(x=>completedLines.add(x));
+  const count=completedLines.size;
+  bingoLabel.innerText=count>=5?"🎉 BINGO! 🎉":letters.slice(0,count);
 }
-
-/* ===== utility ===== */
-function setText(id, txt){ const el=document.getElementById(id); if(el) el.innerText = txt; }
-
-/* DOM refs */
-let boardEl = document.getElementById('board');
-
-/* clean-up on unload (optional) */
-window.addEventListener('beforeunload', ()=> {
-  // detach listeners when leaving
-  if(roomId){
-    try { db.ref(`rooms/${roomId}`).off(); }
-    catch(e){}
-  }
-});
-
 </script>
 </body>
 </html>
