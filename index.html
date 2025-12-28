@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -89,10 +90,6 @@ firebase.initializeApp({
   authDomain: "bingo-multiplayer-315fb.firebaseapp.com",
   databaseURL: "https://bingo-multiplayer-315fb-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "bingo-multiplayer-315fb",
-  storageBucket: "bingo-multiplayer-315fb.firebasestorage.app",
-  messagingSenderId: "157740745674",
-  appId: "1:157740745674:web:a4bdabb3bc8a05d024c533",
-  measurementId: "G-88SZ629W0B"
 });
 
 const db = firebase.database();
@@ -132,10 +129,21 @@ function enterRoom(){
 
 /* ---------- GAME ---------- */
 function startGame(){
-  const p1Board = shuffle([...Array(25).keys()].map(n=>n+1));
-  const p2Board = shuffle([...Array(25).keys()].map(n=>n+1));
-  db.ref(`rooms/${roomId}/boards`).set({ P1: p1Board, P2: p2Board });
-  db.ref(`rooms/${roomId}/started`).set(true);
+  db.ref(`rooms/${roomId}/players`).once("value", snap=>{
+    const players = Object.keys(snap.val() || {});
+    if(players.length<2){
+      alert("Waiting for both players to join!");
+      return;
+    }
+    // Only generate boards if not already there
+    db.ref(`rooms/${roomId}/boards`).once("value", bs=>{
+      if(bs.exists()) return;
+      const p1Board = shuffle([...Array(25).keys()].map(n=>n+1));
+      const p2Board = shuffle([...Array(25).keys()].map(n=>n+1));
+      db.ref(`rooms/${roomId}/boards`).set({P1:p1Board, P2:p2Board});
+      db.ref(`rooms/${roomId}/started`).set(true);
+    });
+  });
 }
 
 function listenRoom(){
@@ -144,7 +152,7 @@ function listenRoom(){
     if(!d) return;
 
     const players = Object.keys(d.players||{});
-    turnText.innerText = "Turn: " + d.turn;
+    turnText.innerText = "Turn: " + (d.turn||"");
 
     if(isOwner && players.length===2 && !d.started)
       startBtn.classList.remove("hidden");
@@ -153,7 +161,7 @@ function listenRoom(){
 
     if(d.started && d.boards?.[playerId]){
       board = d.boards[playerId];
-      marked = Array(25).fill(false);
+      if(!marked.length) marked = Array(25).fill(false);
       renderBoard(d.marks||{}, d.turn);
     }
   });
@@ -162,6 +170,7 @@ function listenRoom(){
 /* ---------- RENDER BOARD ---------- */
 function renderBoard(marks, turn){
   boardDiv.innerHTML="";
+  marked = Array(25).fill(false);
   Object.keys(marks||{}).forEach(i=>marked[i]=true);
 
   board.forEach((n,i)=>{
