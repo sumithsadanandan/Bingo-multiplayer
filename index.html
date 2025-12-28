@@ -28,7 +28,8 @@ body.neon .cell.marked{background:#48c774;color:#000;}
 body.soft .cell.marked{background:#a8dadc;color:#000;}
 .cell.not-my-turn{cursor:not-allowed;opacity:0.6;}
 .status{text-align:center;margin-top:12px;font-weight:600;font-size:16px;}
-.hidden{display:none}
+.hidden{display:none!important;}
+#roomCodeDisplay{background:#e3f2fd;padding:12px;border-radius:8px;margin-bottom:12px;font-size:18px;font-weight:700;}
 .info-box{background:#e8f5e9;padding:12px;border-radius:8px;margin-top:12px;font-size:14px;}
 body.neon .info-box{background:#2d4a3e;}
 #bingoLabel{font-size:28px;font-weight:800;color:#6c5ce7;margin-top:16px;}
@@ -125,6 +126,7 @@ function initApp() {
   const lobbyCard = document.getElementById('lobby');
   const gameCard = document.getElementById('game');
   const roomLabel = document.getElementById('roomLabel');
+  const roomCodeDisplay = document.getElementById('roomCodeDisplay');
   const turnLabel = document.getElementById('turnLabel');
   const boardEl = document.getElementById('board');
   const bingoLabel = document.getElementById('bingoLabel');
@@ -201,8 +203,16 @@ function initApp() {
 
   /* ===== Enter game UI ===== */
   function enterRoomUI() {
-    lobbyCard.classList.remove('hidden');
-    gameCard.classList.add('hidden');
+    // Hide create/join buttons, show room info
+    createBtn.style.display = 'none';
+    joinBtn.style.display = 'none';
+    roomInput.style.display = 'none';
+    themeSelect.style.display = 'none';
+    
+    // Show room code
+    roomCodeDisplay.classList.remove('hidden');
+    roomCodeDisplay.innerHTML = `<strong>🎮 Room Code: ${roomId}</strong><br><small>Share this code with Player 2</small>`;
+    
     roomLabel.innerText = `Room: ${roomId} | You are Player ${playerId.substring(1)}`;
     
     // Show start button for owner
