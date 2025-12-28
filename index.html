@@ -200,9 +200,14 @@ function initApp() {
 
   /* ===== Enter game UI ===== */
   function enterRoomUI() {
-    lobbyCard.classList.add('hidden');
-    gameCard.classList.remove('hidden');
+    lobbyCard.classList.remove('hidden');
+    gameCard.classList.add('hidden');
     roomLabel.innerText = `Room: ${roomId} | You are Player ${playerId.substring(1)}`;
+    
+    // Show start button for owner
+    if (isOwner) {
+      startBtn.classList.remove('hidden');
+    }
     
     if (!listenersAttached) {
       attachRoomListener();
@@ -274,8 +279,6 @@ function initApp() {
       // Update turn
       currentTurn = data.turn;
       const isMyTurn = currentTurn === playerId;
-      turnLabel.innerText = isMyTurn ? "🟢 Your Turn!" : `⏳ Waiting for ${currentTurn}`;
-      turnLabel.style.color = isMyTurn ? "#27ae60" : "#e67e22";
       
       // Check for winner
       if (data.winner) {
@@ -285,9 +288,16 @@ function initApp() {
         return;
       }
       
-      // Game started - load board
+      // Game started - load board and switch to game view
       if (data.started && data.boards && data.boards[playerId]) {
+        // Switch to game view
+        lobbyCard.classList.add('hidden');
+        gameCard.classList.remove('hidden');
+        
         gameStarted = true;
+        
+        turnLabel.innerText = isMyTurn ? "🟢 Your Turn!" : `⏳ Waiting for ${currentTurn}`;
+        turnLabel.style.color = isMyTurn ? "#27ae60" : "#e67e22";
         
         // Load my board if not already loaded
         if (myBoard.length === 0) {
