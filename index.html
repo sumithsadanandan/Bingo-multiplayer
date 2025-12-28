@@ -43,7 +43,6 @@ canvas{position:fixed;inset:0;pointer-events:none;}
   </div>
   <div id="turnIndicator">Waiting for players...</div>
   <div id="calledNumbers"></div>
-  <button id="callNumberBtn">Call Number</button>
 
   <div class="board-container">
     <div class="player-board">
@@ -87,22 +86,35 @@ const sound=document.getElementById('sound');
 const roomSetupDiv=document.getElementById('roomSetup');
 const gameAreaDiv=document.getElementById('gameArea');
 const roomCodeDisplay=document.getElementById('roomCodeDisplay');
-const callNumberBtn=document.getElementById('callNumberBtn');
 const newGameBtn=document.getElementById('newGameBtn');
 const themeSelect=document.getElementById('themeSelect');
 
 function generateBoard(){return [...Array(25).keys()].map(i=>i+1).sort(()=>Math.random()-0.5);}
+
+// Populate grid with clickable numbers
 function populateGrid(){
   grid.innerHTML=''; cells.length=0;
-  boardNums.forEach(n=>{
+  boardNums.forEach((n,i)=>{
     const cell=document.createElement('div');
     cell.className='cell';
     cell.textContent=n;
+
+    cell.onclick = () => {
+      if(bingo) return;
+      db.ref('rooms/'+roomCode).once('value').then(snapshot=>{
+        const data = snapshot.val(); if(!data) return;
+        if(!data.calledNumbers.includes(n)){
+          db.ref('rooms/'+roomCode).update({calledNumbers:[...data.calledNumbers,n]});
+        }
+      });
+    };
+
     cells.push(cell);
     grid.appendChild(cell);
   });
 }
 
+// Theme application
 function applyTheme(theme){
   if(theme==='pastel'){document.body.style.background='#fde2e4'; document.querySelector('.player-board').style.background='#fff'; document.querySelector('.player-board').style.color='#000';}
   if(theme==='lavender'){document.body.style.background='#e6e6fa'; document.querySelector('.player-board').style.background='#f5f0ff'; document.querySelector('.player-board').style.color='#000';}
@@ -114,7 +126,7 @@ document.getElementById('createRoomBtn').onclick=function(){
   roomCode=Math.random().toString(36).substring(2,7).toUpperCase();
   playerNum=1;
   const board1=generateBoard(); const board2=generateBoard();
-  db.ref('rooms/'+roomCode).set({currentPlayer:1, calledNumbers:[], board1, board2, players:{'1':true}});
+  db.ref('rooms/'+roomCode).set({calledNumbers:[], board1, board2, players:{'1':true}});
   startGame();
 };
 document.getElementById('joinRoomBtn').onclick=function(){
@@ -149,48 +161,53 @@ function startGame(){
     calledNumbers = data.calledNumbers||[];
     calledNumbersDiv.textContent="Called Numbers: "+calledNumbers.join(', ');
 
-    // Mark cells
-    cells.forEach((cell,i)=>{
-      cell.classList.remove('marked','completed');
-      if(calledNumbers.includes(+cell.textContent)) cell.classList.add('marked');
-    });
-
-    // Turn info
-    turnIndicator.textContent="Current Turn: Player "+data.currentPlayer;
-    callNumberBtn.disabled=(data.currentPlayer!==playerNum || bingo || Object.keys(data.players).length<2);
+    // Mark cells & highlight completed rows/columns
+    cells.forEach((cell,i)=>{cell.classList.remove('marked','completed');});
+    highlightCompletedLines();
 
     // Check bingo
     checkBingo();
   });
 }
 
-// Call number
-callNumberBtn.onclick=function(){
-  db.ref('rooms/'+roomCode).once('value').then(snapshot=>{
-    const data=snapshot.val(); if(!data) return;
-    let remaining=[...Array(25).keys()].map(i=>i+1).filter(n=>!data.calledNumbers.includes(n));
-    if(!remaining.length) return;
-    const num=remaining[Math.floor(Math.random()*remaining.length)];
-    const nextPlayer=playerNum===1?2:1;
-    db.ref('rooms/'+roomCode).update({calledNumbers:[...data.calledNumbers,num], currentPlayer:nextPlayer});
-  });
-};
-
 // New Game
 newGameBtn.onclick=function(){
   const board1=generateBoard(); const board2=generateBoard();
-  db.ref('rooms/'+roomCode).update({currentPlayer:1, calledNumbers:[], board1, board2});
+  db.ref('rooms/'+roomCode).update({calledNumbers:[], board1, board2});
   bingo=false; document.getElementById('winner').textContent='';
 };
 
-// Bingo check
+// Bingo check & highlight completed rows/columns
+function highlightCompletedLines(){
+  const lines=[];
+  for(let r=0;r<SIZE;r++) lines.push([...Array(SIZE)].map((_,c)=>r*SIZE+c));
+  for(let c=0;c<SIZE;c++) lines.push([...Array(SIZE)].map((_,r)=>r*SIZE+c));
+
+  lines.forEach(line=>{
+    if(line.every(i=>calledNumbers.includes(boardNums[i]))){
+      line.forEach(i=>cells[i].classList.add('completed'));
+    } else {
+      line.forEach(i=>{
+        if(calledNumbers.includes(boardNums[i])) cells[i].classList.add('marked');
+      });
+    }
+  });
+}
+
 function checkBingo(){
   if(bingo) return;
-  const lines=[]; for(let r=0;r<SIZE;r++) lines.push([...Array(SIZE)].map((_,c)=>r*SIZE+c));
+  const lines=[];
+  for(let r=0;r<SIZE;r++) lines.push([...Array(SIZE)].map((_,c)=>r*SIZE+c));
   for(let c=0;c<SIZE;c++) lines.push([...Array(SIZE)].map((_,r)=>r*SIZE+c));
   let won=false;
   lines.forEach(line=>{if(line.every(i=>calledNumbers.includes(boardNums[i]))) won=true;});
-  if(won){bingo=true; document.getElementById('winner').textContent="🎉 BINGO!"; sound.currentTime=0; sound.play(); confetti();}
+  if(won){
+    bingo=true;
+    document.getElementById('winner').textContent="🎉 BINGO!";
+    sound.currentTime=0;
+    sound.play();
+    confetti();
+  }
 }
 
 /* CONFETTI */
