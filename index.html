@@ -3,227 +3,92 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Sumith’s Bingo</title>
+<title>Sumith’s Bingo - 2 Player</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&display=swap" rel="stylesheet">
 
 <style>
-/* =====================
-   THEME VARIABLES
-   ===================== */
-:root {
-  --bg: linear-gradient(135deg, #fde2e4, #fadadd);
-  --card: #ffffff;
-  --cell: #ffffff;
-  --border: #e8e8e8;
-  --marked: #e6dbff;   /* lavender = selected */
-  --complete: #c8f7dc; /* green = completed */
-  --accent: #f48fb1;
-  --accent-dark: #ec407a;
-  --text: #444;
-  --shadow: 0 12px 30px rgba(0,0,0,0.08);
-}
-
-/* =====================
-   BASE LAYOUT
-   ===================== */
 body {
-  margin: 0;
-  font-family: 'Poppins', sans-serif;
-  background: var(--bg);
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
+  margin:0;
+  font-family:'Poppins',sans-serif;
+  background: #fde2e4;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:16px;
 }
 
-.app {
-  width: 100%;
-  max-width: 420px;
-  padding: 16px;
+h1 { margin:6px 0; }
+
+.board-container {
+  display:flex;
+  gap:16px;
+  margin-top:16px;
+  flex-wrap:wrap;
 }
 
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-h1 {
-  margin: 6px 0;
-  color: var(--text);
-}
-
-select {
-  padding: 6px 10px;
-  border-radius: 12px;
-  border: none;
-  font-family: inherit;
-}
-
-/* =====================
-   BINGO LETTERS
-   ===================== */
-.bingo {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin: 12px 0;
-}
-
-.letter {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.letter.active {
-  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-  color: #fff;
-}
-
-/* =====================
-   CARD & GRID
-   ===================== */
-.card {
-  background: var(--card);
-  border-radius: 20px;
-  padding: 14px;
-  box-shadow: var(--shadow);
+.player-board {
+  background:#fff;
+  padding:12px;
+  border-radius:16px;
+  box-shadow:0 8px 20px rgba(0,0,0,0.08);
+  text-align:center;
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px;
+  margin-top:8px;
 }
 
 .cell {
-  aspect-ratio: 1;
-  background: var(--cell);
-  border-radius: 14px;
-  border: 2px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text);
-  cursor: pointer;
-  transition: 0.25s;
+  aspect-ratio:1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  border-radius:12px;
+  border:2px solid #e8e8e8;
+  font-weight:600;
+  cursor:pointer;
+  transition:0.25s;
 }
 
-.cell:active { transform: scale(0.95); }
-
-.cell.marked { background: var(--marked); }
-.cell.completed { background: var(--complete); }
-
-/* =====================
-   CONTROLS
-   ===================== */
-.controls {
-  text-align: center;
-  margin-top: 14px;
-}
+.cell.marked { background:#e6dbff; } /* selected */
+.cell.completed { background:#c8f7dc; } /* bingo */
 
 button {
-  padding: 12px 24px;
-  font-size: 16px;
-  border-radius: 30px;
-  border: none;
-  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-  color: #fff;
-  cursor: pointer;
+  margin-top:16px;
+  padding:12px 24px;
+  border:none;
+  border-radius:30px;
+  background:#f48fb1;
+  color:#fff;
+  cursor:pointer;
+  font-size:16px;
 }
 
-#bingoMessage {
-  margin-top: 12px;
-  font-size: 26px;
-  font-weight: 600;
-  color: var(--accent-dark);
-  opacity: 0;
-  transition: 0.6s;
-}
-#bingoMessage.show { opacity: 1; }
+#turnIndicator { margin-top:12px; font-weight:600; font-size:18px; }
 
-canvas {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
-/* =====================
-   THEMES
-   ===================== */
-
-/* 🌸 Pastel Play (default) */
-body.pastel {
-  --bg: linear-gradient(135deg, #fde2e4, #fadadd);
-}
-
-/* ⚡ Neon Night */
-body.neon {
-  --bg: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-  --card: #111;
-  --cell: #1b1b1b;
-  --border: #00e5ff;
-  --marked: #7c4dff;
-  --complete: #00e676;
-  --accent: #00e5ff;
-  --accent-dark: #00bcd4;
-  --text: #e0f7fa;
-  --shadow: 0 0 30px rgba(0,229,255,0.35);
-}
-
-/* 🧊 Soft Touch */
-body.soft {
-  --bg: #e0e0e0;
-  --card: #e0e0e0;
-  --cell: #e0e0e0;
-  --border: transparent;
-  --marked: #d1c4e9;
-  --complete: #b2dfdb;
-  --accent: #757575;
-  --accent-dark: #424242;
-  --text: #333;
-  --shadow: 8px 8px 16px #bebebe,
-            -8px -8px 16px #ffffff;
-}
+canvas { position:fixed; inset:0; pointer-events:none; }
 </style>
 </head>
 
-<body class="pastel">
-<div class="app">
-  <header>
-    <h1>Sumith’s Bingo</h1>
-    <select id="theme">
-      <option value="pastel">🌸 Pastel Play</option>
-      <option value="neon">⚡ Neon Night</option>
-      <option value="soft">🧊 Soft Touch</option>
-    </select>
-  </header>
+<body>
+<h1>Sumith’s Bingo - 2 Player</h1>
+<div id="turnIndicator">Current Turn: Player 1</div>
+<button id="callNumberBtn">Call Number</button>
 
-  <div class="bingo">
-    <div class="letter" id="b">B</div>
-    <div class="letter" id="i">I</div>
-    <div class="letter" id="n">N</div>
-    <div class="letter" id="g">G</div>
-    <div class="letter" id="o">O</div>
+<div class="board-container">
+  <div class="player-board">
+    <h2>Player 1</h2>
+    <div class="grid" id="grid1"></div>
+    <div id="winner1" style="margin-top:8px; font-weight:600;"></div>
   </div>
-
-  <div class="card">
-    <div class="grid" id="grid"></div>
-  </div>
-
-  <div class="controls">
-    <button onclick="generateBoard()">New Board</button>
-    <div id="bingoMessage">🎉 BINGO! 🎉</div>
+  <div class="player-board">
+    <h2>Player 2</h2>
+    <div class="grid" id="grid2"></div>
+    <div id="winner2" style="margin-top:8px; font-weight:600;"></div>
   </div>
 </div>
 
@@ -232,126 +97,105 @@ body.soft {
 
 <script>
 const SIZE = 5;
-let cells = [];
-let completed = new Set();
-let bingo = false;
-let audioReady = false;
-
-/* CONFETTI FIX */
+let board1=[], board2=[];
+let cells1=[], cells2=[];
+let calledNumbers = [];
+let currentPlayer = 1;
+let bingo1=false, bingo2=false;
 let confettiFrameId = null;
+const sound=document.getElementById('sound'); sound.volume=1;
+const grid1=document.getElementById('grid1');
+const grid2=document.getElementById('grid2');
+const turnIndicator=document.getElementById('turnIndicator');
 
-const sound = document.getElementById('sound');
-sound.volume = 1;
+function shuffle(arr){ return arr.sort(()=>Math.random()-0.5); }
 
-/* Theme switch */
-document.getElementById('theme').onchange = e => {
-  document.body.className = e.target.value;
-};
-
-/* Generate board */
-function generateBoard(){
-  stopConfetti();
-
-  const grid = document.getElementById('grid');
-  grid.innerHTML = '';
-  cells = [];
-  completed.clear();
-  bingo = false;
-
-  document.getElementById('bingoMessage').classList.remove('show');
-  document.querySelectorAll('.letter').forEach(l => l.classList.remove('active'));
-
-  [...Array(25).keys()].map(i=>i+1).sort(()=>Math.random()-0.5)
-  .forEach(n=>{
+function generateBoard(grid, cellsArr){
+  grid.innerHTML=''; 
+  cellsArr.length=0;
+  const nums=shuffle([...Array(25).keys()].map(i=>i+1));
+  nums.forEach(n=>{
     const cell=document.createElement('div');
     cell.className='cell';
     cell.textContent=n;
-    cell.onclick=()=>{
-      if(!audioReady){
-        sound.play().catch(()=>{});
-        sound.pause();
-        audioReady=true;
-      }
-      cell.classList.toggle('marked');
-      checkBingo();
-    };
-    cells.push(cell);
+    cellsArr.push(cell);
     grid.appendChild(cell);
+  });
+  return nums;
+}
+
+function newGame(){
+  stopConfetti();
+  calledNumbers=[]; currentPlayer=1;
+  bingo1=bingo2=false;
+  turnIndicator.textContent="Current Turn: Player 1";
+  document.getElementById('winner1').textContent='';
+  document.getElementById('winner2').textContent='';
+  board1=generateBoard(grid1, cells1);
+  board2=generateBoard(grid2, cells2);
+}
+
+function callNumber(){
+  const remaining = [...Array(25).keys()].map(i=>i+1).filter(n=>!calledNumbers.includes(n));
+  if(!remaining.length) return;
+  const num = remaining[Math.floor(Math.random()*remaining.length)];
+  calledNumbers.push(num);
+  markNumber(num, cells1);
+  markNumber(num, cells2);
+  checkBingo(cells1, 'winner1'); checkBingo(cells2, 'winner2');
+  currentPlayer = currentPlayer===1?2:1;
+  turnIndicator.textContent="Current Turn: Player "+currentPlayer;
+}
+
+function markNumber(num, cells){
+  cells.forEach(cell=>{
+    if(+cell.textContent===num) cell.classList.add('marked');
   });
 }
 
-/* Bingo logic */
-function checkBingo(){
+function checkBingo(cells, winnerId){
+  if(document.getElementById(winnerId).textContent) return; // already won
   const lines=[];
   for(let r=0;r<SIZE;r++) lines.push([...Array(SIZE)].map((_,c)=>r*SIZE+c));
   for(let c=0;c<SIZE;c++) lines.push([...Array(SIZE)].map((_,r)=>r*SIZE+c));
-
-  lines.forEach((l,i)=>{
-    if(l.every(x=>cells[x].classList.contains('marked'))){
-      l.forEach(x=>cells[x].classList.add('completed'));
-      completed.add(i);
+  let won=false;
+  lines.forEach(line=>{
+    if(line.every(i=>cells[i].classList.contains('marked'))){
+      line.forEach(i=>cells[i].classList.add('completed'));
+      won=true;
     }
   });
-
-  ['b','i','n','g','o'].forEach((id,i)=>{
-    document.getElementById(id).classList.toggle('active', completed.size>i);
-  });
-
-  if(completed.size>=5 && !bingo){
-    bingo=true;
-    document.getElementById('bingoMessage').classList.add('show');
-    sound.currentTime=0;
-    sound.play().catch(()=>{});
+  if(won){
+    document.getElementById(winnerId).textContent="🎉 BINGO!";
+    sound.currentTime=0; sound.play().catch(()=>{});
     confetti();
   }
 }
 
-/* CONFETTI (fixed) */
+/* CONFETTI */
 function confetti(){
-  const c=document.getElementById('confetti');
-  const ctx=c.getContext('2d');
-  c.width=innerWidth;
-  c.height=innerHeight;
-
-  const pieces=[...Array(120)].map(()=>({
-    x:Math.random()*c.width,
-    y:-20,
-    r:Math.random()*6+4,
-    v:Math.random()*3+2,
-    col:['#f48fb1','#ce93d8','#b39ddb','#80cbc4','#a5d6a7']
-        [Math.floor(Math.random()*5)]
-  }));
-
+  const c=document.getElementById('confetti'); const ctx=c.getContext('2d');
+  c.width=innerWidth; c.height=innerHeight;
+  const pieces=[...Array(120)].map(()=>({x:Math.random()*c.width,y:-20,r:Math.random()*6+4,v:Math.random()*3+2,col:['#f48fb1','#ce93d8','#b39ddb','#80cbc4','#a5d6a7'][Math.floor(Math.random()*5)]}));
   let frame=0;
   function draw(){
     ctx.clearRect(0,0,c.width,c.height);
-    pieces.forEach(p=>{
-      p.y+=p.v;
-      ctx.fillStyle=p.col;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-      ctx.fill();
-    });
-    if(frame++<180){
-      confettiFrameId=requestAnimationFrame(draw);
-    } else {
-      stopConfetti();
-    }
+    pieces.forEach(p=>{p.y+=p.v;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();});
+    if(frame++<180) confettiFrameId=requestAnimationFrame(draw);
+    else stopConfetti();
   }
   draw();
 }
 
 function stopConfetti(){
-  const c=document.getElementById('confetti');
-  const ctx=c.getContext('2d');
-  if(confettiFrameId){
-    cancelAnimationFrame(confettiFrameId);
-    confettiFrameId=null;
-  }
+  const c=document.getElementById('confetti'); const ctx=c.getContext('2d');
+  if(confettiFrameId){ cancelAnimationFrame(confettiFrameId); confettiFrameId=null; }
   ctx.clearRect(0,0,c.width,c.height);
 }
 
-generateBoard();
+/* Initialize game */
+newGame();
+document.getElementById('callNumberBtn').onclick=callNumber;
 </script>
 </body>
 </html>
